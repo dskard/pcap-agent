@@ -5,6 +5,7 @@ from __future__ import annotations
 import numpy as np
 from sklearn.ensemble import IsolationForest
 
+from pcap_agent import telemetry
 from pcap_agent.tools import _state
 
 _PORT_SCAN_SQL = """
@@ -126,8 +127,10 @@ def detect_anomalies(contamination: float = 0.02) -> list[dict] | dict:
     labels = clf.fit_predict(X)
     scores = clf.score_samples(X)
 
-    return [
+    anomalies = [
         {**rec, "anomaly_score": round(float(score), 6)}
         for rec, label, score in zip(records, labels, scores)
         if label == -1
     ]
+    telemetry.record_anomalies_detected(len(anomalies))
+    return anomalies

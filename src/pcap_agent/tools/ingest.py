@@ -6,7 +6,7 @@ from typing import Any
 
 import duckdb
 
-from pcap_agent import db, parser
+from pcap_agent import db, parser, telemetry
 from pcap_agent.config import config
 from pcap_agent.tools import _state
 from pcap_agent.tools.analysis import get_protocol_breakdown, get_top_talkers
@@ -67,6 +67,8 @@ def _summary(
     cached: bool,
 ) -> dict[str, Any]:
     n_packets = conn.execute("SELECT COUNT(*) FROM packets").fetchone()[0]
+    if not cached:
+        telemetry.record_packets_ingested(n_packets)
     row = conn.execute(
         "SELECT MIN(timestamp), MAX(timestamp) FROM packets"
     ).fetchone()

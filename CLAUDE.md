@@ -21,6 +21,7 @@ src/pcap_agent/
   cli.py             # click entry point: flags, spinner ingest, console/app dispatch
   db.py              # DuckDB schema DDL, ingest(), get_cached()/set_cached()
   parser.py          # Scapy → Polars DataFrames (ParsedPcap)
+  telemetry.py       # OTel SDK init (setup()), instrument_tool(), metric record helpers
   tools/
     _state.py        # module-level singleton connection: set/get/require/reset
     ingest.py        # ingest_pcap() — parse + persist + auto-run analysis
@@ -39,6 +40,7 @@ tests/
 - **Tools return plain dicts** so the agent can serialize and reason about results.
 - **Expected errors return structured dicts** `{"error": ..., "hint": ...}`; unexpected exceptions propagate. This lets the agent self-correct on bad input without crashing.
 - **`ingest_pcap` closes the previous connection** when switching to a different DB file (DuckDB single-writer constraint). Any fixture or caller that holds a reference to the old connection object must re-open by path, not restore the closed handle.
+- **Telemetry is a no-op by default** (`telemetry.py`): `setup("")` skips all OTel SDK initialisation. All 7 tools are wrapped with `instrument_tool()` in `agent.py`; spans and metrics are only emitted when an OTLP endpoint is configured. Metric counters (`record_packets_ingested`, `record_queries_run`, `record_anomalies_detected`) live in the tool functions themselves so the CLI initial ingest also records metrics.
 
 ## Schema
 
@@ -90,6 +92,11 @@ def custom_conn(self, duckdb_conn):
 
 This keeps the session `_state._conn` intact for all other test files.
 
+### Testing OTel instrumentation without a real OTLP server
+Use `InMemorySpanExporter` and `InMemoryMetricReader` from the OTel SDK to unit-test spans and metrics without needing a running collector. Directly set `telemetry._tracer` / `telemetry._meter` / `telemetry._metrics` in the fixture instead of calling `setup()`, to avoid mutating global OTel provider state across tests. Call `telemetry._reset()` in `autouse` teardown.
+
+To patch multiple OTel symbols inside a function that does lazy imports (e.g. `setup()`), use `contextlib.ExitStack` — Python's `with` statement does not support `*`-unpacking a list of context managers.
+
 ### Test file ordering matters
 pytest collects files alphabetically. Tests in `test_query_tool.py` run after `test_ingest.py::TestIngestCaching`, which temporarily replaces the session connection. The `_restore_state` fixture must leave `_state._conn` in a valid open state or later test files will see a closed connection.
 
@@ -119,6 +126,8 @@ Tests set `ANTHROPIC_API_KEY=test-dummy-key` via `pytest_configure` in `conftest
 | `just lint` | Run ruff over `src` and `tests` |
 | `just run-repl [args...]` | Start the console REPL; pass any CLI flags or a PCAP path as extra args |
 | `just run-app [args...]` | Start the Shiny web UI; same variadic args |
+| `just grafana-up` | Start `grafana/otel-lgtm` container (Grafana on :3000, OTLP HTTP on :4318) |
+| `just grafana-down` | Stop and remove the Grafana container |
 
 ## Branch naming
 
