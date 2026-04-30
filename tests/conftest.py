@@ -33,6 +33,7 @@ from constants import (
 from scapy.all import ICMP, IP, TCP, UDP, Raw, wrpcap  # type: ignore[import-untyped]
 
 from pcap_agent import db, parser
+from pcap_agent.tools.ingest import ingest_pcap
 
 
 def pytest_configure(config):  # noqa: ARG001
@@ -125,3 +126,10 @@ def duckdb_conn():
     db.create_schema(conn)
     yield conn
     conn.close()
+
+
+@pytest.fixture(scope="session")
+def ingested_db(synthetic_pcap, tmp_path_factory):
+    """Ingest the synthetic PCAP into a temp DuckDB once per session."""
+    db_dir = str(tmp_path_factory.mktemp("dbs"))
+    return ingest_pcap(str(synthetic_pcap), db_dir=db_dir)
