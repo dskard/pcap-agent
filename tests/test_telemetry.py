@@ -92,10 +92,12 @@ class TestSetupNoOp:
     def test_no_endpoint_sets_root_logger_level(self):
         root = logging.getLogger()
         original_level = root.level
+        original_handlers = root.handlers[:]
         try:
             telemetry.setup("", log_level="DEBUG")
             assert root.level == logging.DEBUG
         finally:
+            root.handlers[:] = original_handlers
             root.setLevel(original_level)
 
 

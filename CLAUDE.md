@@ -40,7 +40,7 @@ tests/
 - **Tools return plain dicts** so the agent can serialize and reason about results.
 - **Expected errors return structured dicts** `{"error": ..., "hint": ...}`; unexpected exceptions propagate. This lets the agent self-correct on bad input without crashing.
 - **`ingest_pcap` closes the previous connection** when switching to a different DB file (DuckDB single-writer constraint). Any fixture or caller that holds a reference to the old connection object must re-open by path, not restore the closed handle.
-- **Telemetry is a no-op by default** (`telemetry.py`): `setup("")` skips all OTel SDK initialisation. All 7 tools are wrapped with `instrument_tool()` in `agent.py`; spans and metrics are only emitted when an OTLP endpoint is configured. Metric counters (`record_packets_ingested`, `record_queries_run`, `record_anomalies_detected`) live in the tool functions themselves so the CLI initial ingest also records metrics.
+- **Telemetry is a no-op by default** (`telemetry.py`): `setup(endpoint, log_level)` always configures the root logger via `logging.basicConfig(..., force=True)`, then returns early if `endpoint` is empty (skipping all OTel SDK initialisation). All 7 tools are wrapped with `instrument_tool()` in `agent.py`; spans and metrics are only emitted when an OTLP endpoint is configured. Metric counters (`record_packets_ingested`, `record_queries_run`, `record_anomalies_detected`) live in the tool functions themselves so the CLI initial ingest also records metrics.
 
 ## Schema
 
@@ -97,6 +97,9 @@ Use `InMemorySpanExporter` and `InMemoryMetricReader` from the OTel SDK to unit-
 
 To patch multiple OTel symbols inside a function that does lazy imports (e.g. `setup()`), use `contextlib.ExitStack` — Python's `with` statement does not support `*`-unpacking a list of context managers.
 
+### Root logger level in tests
+`telemetry.setup()` configures the root logger via `logging.basicConfig(..., force=True)`, which always replaces existing handlers. Tests that call `setup()` with a non-default level must restore `logging.getLogger().level` (and handlers) in a `try/finally` block, because the `reset_telemetry` autouse fixture does not reset root logger state.
+
 ### Test file ordering matters
 pytest collects files alphabetically. Tests in `test_query_tool.py` run after `test_ingest.py::TestIngestCaching`, which temporarily replaces the session connection. The `_restore_state` fixture must leave `_state._conn` in a valid open state or later test files will see a closed connection.
 
@@ -108,7 +111,7 @@ pytest collects files alphabetically. Tests in `test_query_tool.py` run after `t
 | `ANTHROPIC_MODEL` | `claude-sonnet-4-6` | Model to use |
 | `PCAP_AGENT_DB_DIR` | `~/.cache/pcap-agent` | Where DuckDB files are stored |
 | `PCAP_AGENT_UI` | `console` | UI mode |
-| `PCAP_AGENT_VERBOSE` | `""` | Enable verbose logging |
+| `PCAP_AGENT_LOG_LEVEL` | `WARNING` | Root logger level (`DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL`) |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | `""` | OpenTelemetry OTLP endpoint |
 
 Tests set `ANTHROPIC_API_KEY=test-dummy-key` via `pytest_configure` in `conftest.py`.

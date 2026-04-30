@@ -22,8 +22,8 @@ def setup(endpoint: str = "", log_level: str = "WARNING") -> None:
         stream=sys.stderr,
         level=log_level,
         format="%(asctime)s %(levelname)s %(name)s %(message)s",
+        force=True,
     )
-    logging.getLogger().setLevel(log_level)
 
     if not endpoint:
         return
