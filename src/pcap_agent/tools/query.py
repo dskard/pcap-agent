@@ -49,8 +49,9 @@ def query(sql: str) -> dict[str, Any]:
             "hint": "Check your SQL syntax and column/table names.",
         }
 
-    if relation is None:
-        # CREATE TEMP VIEW succeeds with no result set
+    if relation is None or relation.description is None:
+        # CREATE TEMP VIEW succeeds with no result set; DuckDB returns the
+        # connection object (never None) for DDL, so check description instead.
         return {"rows": [], "truncated": False, "row_count": 0}
 
     columns = [desc[0] for desc in relation.description]
