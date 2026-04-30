@@ -41,10 +41,10 @@ def query(sql: str) -> dict[str, Any]:
         }
 
     conn = _state.require_connection()
-    telemetry.record_queries_run()
 
     try:
         relation = conn.execute(sql)
+        telemetry.record_queries_run()
     except duckdb.Error as exc:
         return {
             "error": str(exc),
