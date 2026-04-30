@@ -39,7 +39,7 @@ enriched AS (
         p.length,
         COALESCE(ps.payload_size, 0) AS payload_size,
         COALESCE(
-            p.timestamp - LAG(p.timestamp) OVER (ORDER BY p.timestamp),
+            p.timestamp - LAG(p.timestamp) OVER (ORDER BY p.timestamp, p.packet_id),
             0.0
         ) AS inter_arrival
     FROM packets p

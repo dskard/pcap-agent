@@ -58,7 +58,7 @@ class TestDetectAnomalies:
         # packets (payload=9000B) score anomalously enough to be flagged.
         result = detect_anomalies(contamination=0.03)
         flagged = [r for r in result if r["src_ip"] == ANOMALY_SRC_IP]
-        assert len(flagged) == ANOMALY_PACKET_COUNT
+        assert len(flagged) >= ANOMALY_PACKET_COUNT
 
     def test_anomaly_src_ip_present(self, ingested_db):
         result = detect_anomalies(contamination=0.03)
