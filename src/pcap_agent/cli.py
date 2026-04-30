@@ -44,7 +44,6 @@ import click
 )
 @click.option(
     "--verbose",
-    envvar="PCAP_AGENT_VERBOSE",
     is_flag=True,
     default=False,
     help="Enable verbose logging [env: PCAP_AGENT_VERBOSE]",
@@ -62,6 +61,8 @@ def main(
 
     Optionally provide a PCAP_FILE to ingest before starting the chat session.
     """
+    verbose = verbose or bool(os.environ.get("PCAP_AGENT_VERBOSE", ""))
+
     if not api_key:
         click.echo(
             "Error: ANTHROPIC_API_KEY is not set. "
@@ -92,7 +93,9 @@ def main(
             transient=True,
         ) as progress:
             progress.add_task(f"Ingesting {pcap_file}…", total=None)
-            ingest_pcap(pcap_file, db_dir=db_dir_expanded)
+            result = ingest_pcap(pcap_file, db_dir=db_dir_expanded)
+        if not result.get("n_packets"):
+            click.echo("Warning: no packets were ingested from the file.", err=True)
 
     from pcap_agent.agent import create_agent
 
