@@ -3,6 +3,7 @@ name = "pcap-agent"
 version = "0.1.0"
 requires-python = ">=3.13"
 dependencies = [
+    "anthropic>=0.97.0",
     "chatlas>=0.16.0",
     "click>=8.3.3",
     "duckdb>=1.5.2",
@@ -22,6 +23,9 @@ dev = [
     "pytest>=9.0.3",
     "ruff>=0.15.12",
 ]
+
+[project.scripts]
+pcap-agent = "pcap_agent.cli:main"
 
 [build-system]
 requires = ["hatchling"]
