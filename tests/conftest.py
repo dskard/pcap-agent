@@ -33,6 +33,7 @@ from constants import (
 from scapy.all import ICMP, IP, TCP, UDP, Raw, wrpcap  # type: ignore[import-untyped]
 
 from pcap_agent import db, parser
+from pcap_agent.tools import _state
 from pcap_agent.tools.ingest import ingest_pcap
 
 
@@ -133,3 +134,13 @@ def ingested_db(synthetic_pcap, tmp_path_factory):
     """Ingest the synthetic PCAP into a temp DuckDB once per session."""
     db_dir = str(tmp_path_factory.mktemp("dbs"))
     return ingest_pcap(str(synthetic_pcap), db_dir=db_dir)
+
+
+@pytest.fixture(scope="session")
+def ingested_conn(ingested_db):  # noqa: ARG001
+    """Return the DuckDB connection established by ingested_db.
+
+    Declaring ingested_db as a dependency ensures the session fixture has run
+    and _state._conn is set before any test uses this fixture.
+    """
+    return _state.require_connection()

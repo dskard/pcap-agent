@@ -1,4 +1,8 @@
-"""Module-level DuckDB connection shared across all tools."""
+"""Module-level DuckDB connection shared across all tools.
+
+These tools assume single-threaded, single-PCAP-per-session use (CLI agent).
+No locking is applied; concurrent access from multiple threads is not supported.
+"""
 
 from __future__ import annotations
 
@@ -17,6 +21,10 @@ def set_connection(conn: duckdb.DuckDBPyConnection, db_path: str) -> None:
 def require_connection() -> duckdb.DuckDBPyConnection:
     if _conn is None:
         raise RuntimeError("No PCAP ingested yet. Call ingest_pcap() first.")
+    return _conn
+
+
+def get_connection() -> duckdb.DuckDBPyConnection | None:
     return _conn
 
 

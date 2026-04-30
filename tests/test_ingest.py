@@ -8,38 +8,41 @@ from constants import (
     UDP_TOTAL,
 )
 
-from pcap_agent.tools import _state
+from pcap_agent.tools import _state  # noqa: F401 — used by _restore_state
 from pcap_agent.tools.ingest import ingest_pcap
 
 
 @pytest.fixture
 def _restore_state():
     """Restore _state after a test that temporarily changes the connection."""
-    saved_conn = _state._conn
-    saved_path = _state._db_path
+    saved_conn = _state.get_connection()
+    saved_path = _state.get_db_path()
     yield
+    new_conn = _state.get_connection()
     _state.reset(saved_conn, saved_path)
+    if new_conn is not None and new_conn is not saved_conn:
+        new_conn.close()
 
 
 class TestIngestPcap:
-    def test_packets_table_populated(self, ingested_db):
-        conn = _state.require_connection()
-        count = conn.execute("SELECT COUNT(*) FROM packets").fetchone()[0]
+    def test_packets_table_populated(self, ingested_conn):
+        count = ingested_conn.execute("SELECT COUNT(*) FROM packets").fetchone()[0]
         assert count == TOTAL_IP
 
-    def test_tcp_segments_table_populated(self, ingested_db):
-        conn = _state.require_connection()
-        count = conn.execute("SELECT COUNT(*) FROM tcp_segments").fetchone()[0]
+    def test_tcp_segments_table_populated(self, ingested_conn):
+        count = ingested_conn.execute("SELECT COUNT(*) FROM tcp_segments").fetchone()[0]
         assert count == TCP_TOTAL
 
-    def test_udp_datagrams_table_populated(self, ingested_db):
-        conn = _state.require_connection()
-        count = conn.execute("SELECT COUNT(*) FROM udp_datagrams").fetchone()[0]
+    def test_udp_datagrams_table_populated(self, ingested_conn):
+        count = ingested_conn.execute(
+            "SELECT COUNT(*) FROM udp_datagrams"
+        ).fetchone()[0]
         assert count == UDP_TOTAL
 
-    def test_icmp_messages_table_populated(self, ingested_db):
-        conn = _state.require_connection()
-        count = conn.execute("SELECT COUNT(*) FROM icmp_messages").fetchone()[0]
+    def test_icmp_messages_table_populated(self, ingested_conn):
+        count = ingested_conn.execute(
+            "SELECT COUNT(*) FROM icmp_messages"
+        ).fetchone()[0]
         assert count == ICMP_PACKET_COUNT
 
     def test_summary_n_packets(self, ingested_db):

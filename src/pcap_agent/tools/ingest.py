@@ -26,9 +26,15 @@ def ingest_pcap(path: str | Path, db_dir: str | None = None) -> dict[str, Any]:
     Path(effective_db_dir).mkdir(parents=True, exist_ok=True)
     db_path = str(Path(effective_db_dir) / f"{sha256[:12]}.duckdb")
 
-    conn = duckdb.connect(db_path)
-    db.create_schema(conn)
-    _state.set_connection(conn, db_path)
+    # Reuse the existing connection when the target file is already open to
+    # avoid leaking the previous handle and conflicting with DuckDB's
+    # single-writer constraint.
+    if _state.get_db_path() == db_path and _state.get_connection() is not None:
+        conn = _state.require_connection()
+    else:
+        conn = duckdb.connect(db_path)
+        db.create_schema(conn)
+        _state.set_connection(conn, db_path)
 
     if db.get_cached(conn, sha256) is not None:
         return _summary(conn, sha256, db_path, cached=True)

@@ -17,7 +17,10 @@ def get_protocol_breakdown() -> list[dict]:
     ).fetchall()
     result = []
     for proto_num, count in rows:
-        name = _PROTO_MAP.get(int(proto_num), f"proto_{proto_num}")
+        if proto_num is not None:
+            name = _PROTO_MAP.get(int(proto_num), f"proto_{proto_num}")
+        else:
+            name = "unknown"
         pct = round(count / total * 100, 1) if total else 0.0
         result.append({"protocol": name, "count": count, "pct": pct})
     return result
@@ -25,6 +28,8 @@ def get_protocol_breakdown() -> list[dict]:
 
 def get_top_talkers(n: int = 10) -> list[dict]:
     """Return top-N source IPs ranked by packet count."""
+    if n <= 0:
+        return []
     conn = _state.require_connection()
     rows = conn.execute(
         "SELECT src_ip, COUNT(*) AS packet_count "
