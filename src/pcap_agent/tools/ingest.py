@@ -1,6 +1,7 @@
 """Ingest tool: parse and persist a PCAP file, auto-run analysis."""
 
 import hashlib
+import logging
 from pathlib import Path
 from typing import Any
 
@@ -11,6 +12,8 @@ from pcap_agent.config import config
 from pcap_agent.tools import _state
 from pcap_agent.tools.analysis import get_protocol_breakdown, get_top_talkers
 
+logger = logging.getLogger(__name__)
+
 
 def ingest_pcap(path: str | Path, db_dir: str | None = None) -> dict[str, Any]:
     """Ingest a PCAP file into DuckDB and return a summary dict.
@@ -20,6 +23,7 @@ def ingest_pcap(path: str | Path, db_dir: str | None = None) -> dict[str, Any]:
     protocol breakdown and top-talker analysis.
     """
     pcap_path = Path(path)
+    logger.info("Starting ingest for %s", pcap_path)
     sha256 = _sha256(pcap_path)
 
     effective_db_dir = db_dir or config.pcap_agent_db_dir
@@ -44,6 +48,11 @@ def ingest_pcap(path: str | Path, db_dir: str | None = None) -> dict[str, Any]:
             old_conn.close()
 
     if db.get_cached(conn, sha256) is not None:
+        logger.warning(
+            "File already cached (sha256=%s path=%s), skipping ingest",
+            sha256,
+            pcap_path,
+        )
         return _summary(conn, sha256, db_path, cached=True)
 
     frames = parser.parse(pcap_path)
@@ -69,6 +78,7 @@ def _summary(
     n_packets = conn.execute("SELECT COUNT(*) FROM packets").fetchone()[0]
     if not cached:
         telemetry.record_packets_ingested(n_packets)
+        logger.info("Ingest complete: %d packets stored in %s", n_packets, db_path)
     row = conn.execute(
         "SELECT MIN(timestamp), MAX(timestamp) FROM packets"
     ).fetchone()

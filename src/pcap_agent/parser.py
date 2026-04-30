@@ -1,10 +1,13 @@
 """Parse a PCAP file into normalized polars DataFrames using scapy."""
 
+import logging
 from dataclasses import dataclass
 from pathlib import Path
 
 import polars as pl
 from scapy.all import ICMP, IP, TCP, UDP, rdpcap  # type: ignore[import-untyped]
+
+logger = logging.getLogger(__name__)
 
 _PROTO_TCP = 6
 _PROTO_UDP = 17
@@ -55,6 +58,7 @@ class ParsedPcap:
 
 def parse(pcap_path: Path | str) -> ParsedPcap:
     """Parse a PCAP file and return four normalized DataFrames."""
+    logger.info("Parsing PCAP file: %s", pcap_path)
     raw_packets = rdpcap(str(pcap_path))
 
     packets_rows: list[dict] = []
@@ -121,6 +125,14 @@ def parse(pcap_path: Path | str) -> ParsedPcap:
             )
 
         packet_id += 1
+
+    logger.info("Parsed %d IP packets from %s", len(packets_rows), pcap_path)
+    logger.debug(
+        "Protocol breakdown — TCP: %d, UDP: %d, ICMP: %d",
+        len(tcp_rows),
+        len(udp_rows),
+        len(icmp_rows),
+    )
 
     return ParsedPcap(
         packets=pl.DataFrame(packets_rows, schema=_PACKETS_SCHEMA)

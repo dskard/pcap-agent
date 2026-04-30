@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import logging
 from typing import TYPE_CHECKING, Any
 
 import duckdb
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from pcap_agent.parser import ParsedPcap
@@ -54,6 +57,7 @@ CREATE TABLE IF NOT EXISTS pcap_meta (
 
 def create_schema(conn: duckdb.DuckDBPyConnection) -> None:
     """Create all normalized tables and the pcap_meta cache table."""
+    logger.debug("Creating database schema")
     conn.execute(_DDL)
 
 
@@ -118,5 +122,7 @@ def get_cached(
         [sha256],
     ).fetchone()
     if row is None:
+        logger.debug("Cache miss for sha256=%s", sha256)
         return None
+    logger.debug("Cache hit for sha256=%s path=%s", sha256, row[1])
     return {"sha256": row[0], "pcap_path": row[1], "ingested_at": row[2]}
