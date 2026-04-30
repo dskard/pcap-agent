@@ -5,12 +5,16 @@ from pathlib import Path
 from constants import (
     ANOMALY_PACKET_COUNT,
     ANOMALY_SRC_IP,
+    ICMP_PACKET_COUNT,
+    ICMP_SRC_IP,
+    ICMP_TYPE,
     SCAN_PORT_COUNT,
     SCAN_TARGET_IP,
     SCANNER_IP,
     TCP_DST_IP,
     TCP_PACKET_COUNT,
     TCP_SRC_IP,
+    TOTAL_FRAMES,
     UDP_PACKET_COUNT,
     UDP_TOP_TALKER_IP,
 )
@@ -25,8 +29,7 @@ def test_synthetic_pcap_exists(synthetic_pcap):
 
 def test_synthetic_pcap_packet_counts(synthetic_pcap):
     pkts = rdpcap(str(synthetic_pcap))
-    total = TCP_PACKET_COUNT + UDP_PACKET_COUNT + SCAN_PORT_COUNT + ANOMALY_PACKET_COUNT
-    assert len(pkts) == total
+    assert len(pkts) == TOTAL_FRAMES
 
 
 def test_synthetic_pcap_tcp_stream(synthetic_pcap):
@@ -60,3 +63,14 @@ def test_synthetic_pcap_anomalies(synthetic_pcap):
     ]
     assert len(anomaly_pkts) == ANOMALY_PACKET_COUNT
     assert all(len(p) > 8000 for p in anomaly_pkts)
+
+
+def test_synthetic_pcap_icmp(synthetic_pcap):
+    pkts = rdpcap(str(synthetic_pcap))
+    icmp_pkts = [
+        p
+        for p in pkts
+        if p.haslayer("IP") and p.haslayer("ICMP") and p["IP"].src == ICMP_SRC_IP
+    ]
+    assert len(icmp_pkts) == ICMP_PACKET_COUNT
+    assert all(p["ICMP"].type == ICMP_TYPE for p in icmp_pkts)
