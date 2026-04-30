@@ -2,6 +2,7 @@
 
 import os
 
+import duckdb
 import pytest
 from constants import (
     ANOMALY_DPORT,
@@ -25,6 +26,8 @@ from constants import (
     UDP_TOP_TALKER_IP,
 )
 from scapy.all import IP, TCP, UDP, Raw, wrpcap  # type: ignore[import-untyped]
+
+from pcap_agent import db, parser
 
 
 def pytest_configure(config):  # noqa: ARG001
@@ -93,3 +96,18 @@ def synthetic_pcap(tmp_path_factory):
 
     wrpcap(str(pcap_path), packets)
     return pcap_path
+
+
+@pytest.fixture(scope="session")
+def parsed_pcap(synthetic_pcap):
+    """Parse the synthetic PCAP once per test session."""
+    return parser.parse(synthetic_pcap)
+
+
+@pytest.fixture
+def duckdb_conn():
+    """Provide a fresh in-memory DuckDB connection per test."""
+    conn = duckdb.connect(":memory:")
+    db.create_schema(conn)
+    yield conn
+    conn.close()
