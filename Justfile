@@ -8,3 +8,9 @@ test:
 
 lint:
     uv run ruff check src tests
+
+run-repl *args="":
+    uv run pcap-agent --ui console {{ args }}
+
+run-app *args="":
+    uv run pcap-agent --ui app {{ args }}
