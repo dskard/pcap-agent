@@ -1,5 +1,7 @@
 """Unit tests for pcap_agent.db."""
 
+import duckdb
+import pytest
 from constants import (
     ICMP_PACKET_COUNT,
     TCP_TOTAL,
@@ -72,11 +74,11 @@ class TestIngestRollback:
         # Pre-insert packet_id=0 to trigger a PRIMARY KEY violation on the
         # second ingest() call, forcing a failure after _load_df("packets").
         duckdb_conn.execute(
-            "INSERT INTO packets VALUES (0, 0.0, '0.0.0.0', '0.0.0.0', 0, 0, 0)"
+            "INSERT INTO packets"
+            " (packet_id, timestamp, src_ip, dst_ip, protocol, length, ttl)"
+            " VALUES (0, 0.0, '0.0.0.0', '0.0.0.0', 0, 0, 0)"
         )
-        import pytest
-
-        with pytest.raises(Exception):
+        with pytest.raises(duckdb.ConstraintException):
             db.ingest(duckdb_conn, parsed_pcap)
         # packets must still contain only the one pre-inserted row.
         count = duckdb_conn.execute("SELECT COUNT(*) FROM packets").fetchone()[0]
