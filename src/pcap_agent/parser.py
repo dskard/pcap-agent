@@ -6,6 +6,10 @@ from pathlib import Path
 import polars as pl
 from scapy.all import ICMP, IP, TCP, UDP, rdpcap  # type: ignore[import-untyped]
 
+_PROTO_TCP = 6
+_PROTO_UDP = 17
+_PROTO_ICMP = 1
+
 _PACKETS_SCHEMA = {
     "packet_id": pl.Int64,
     "timestamp": pl.Float64,
@@ -57,6 +61,7 @@ def parse(pcap_path: Path | str) -> ParsedPcap:
     tcp_rows: list[dict] = []
     udp_rows: list[dict] = []
     icmp_rows: list[dict] = []
+    # packet_id is a sequential index over IP-only frames, not the PCAP frame number.
     packet_id = 0
 
     for pkt in raw_packets:
@@ -76,7 +81,11 @@ def parse(pcap_path: Path | str) -> ParsedPcap:
             }
         )
 
-        if pkt.haslayer(TCP):
+        # Use ip.proto to classify the outer protocol rather than haslayer(),
+        # which recurses into inner encapsulated headers (e.g. ICMP error payloads
+        # that embed an offending IP/TCP or IP/UDP datagram).
+        proto = int(ip.proto)
+        if proto == _PROTO_TCP and pkt.haslayer(TCP):
             tcp = pkt[TCP]
             tcp_rows.append(
                 {
@@ -89,7 +98,7 @@ def parse(pcap_path: Path | str) -> ParsedPcap:
                     "payload": bytes(tcp.payload) if tcp.payload else b"",
                 }
             )
-        elif pkt.haslayer(UDP):
+        elif proto == _PROTO_UDP and pkt.haslayer(UDP):
             udp = pkt[UDP]
             udp_rows.append(
                 {
@@ -99,7 +108,7 @@ def parse(pcap_path: Path | str) -> ParsedPcap:
                     "payload": bytes(udp.payload) if udp.payload else b"",
                 }
             )
-        elif pkt.haslayer(ICMP):
+        elif proto == _PROTO_ICMP and pkt.haslayer(ICMP):
             icmp = pkt[ICMP]
             icmp_rows.append(
                 {

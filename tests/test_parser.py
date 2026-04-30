@@ -7,20 +7,23 @@ from constants import (
     ANOMALY_PACKET_COUNT,
     ANOMALY_SPORT,
     ANOMALY_SRC_IP,
-    SCAN_PORT_COUNT,
+    ICMP_CODE,
+    ICMP_DST_IP,
+    ICMP_PACKET_COUNT,
+    ICMP_SRC_IP,
+    ICMP_TYPE,
     TCP_DPORT,
     TCP_PACKET_COUNT,
     TCP_SPORT,
     TCP_SRC_IP,
+    TCP_TOTAL,
+    TOTAL_IP,
     UDP_DPORT,
     UDP_PACKET_COUNT,
     UDP_SPORT,
     UDP_TOP_TALKER_IP,
+    UDP_TOTAL,
 )
-
-_TCP_TOTAL = TCP_PACKET_COUNT + SCAN_PORT_COUNT
-_UDP_TOTAL = UDP_PACKET_COUNT + ANOMALY_PACKET_COUNT
-_TOTAL_IP = _TCP_TOTAL + _UDP_TOTAL
 
 
 class TestParsedPcapTypes:
@@ -75,24 +78,22 @@ class TestParsedPcapTypes:
 
 class TestRowCounts:
     def test_packets_total(self, parsed_pcap):
-        assert len(parsed_pcap.packets) == _TOTAL_IP
+        assert len(parsed_pcap.packets) == TOTAL_IP
 
     def test_tcp_segments_total(self, parsed_pcap):
-        assert len(parsed_pcap.tcp_segments) == _TCP_TOTAL
+        assert len(parsed_pcap.tcp_segments) == TCP_TOTAL
 
     def test_udp_datagrams_total(self, parsed_pcap):
-        assert len(parsed_pcap.udp_datagrams) == _UDP_TOTAL
+        assert len(parsed_pcap.udp_datagrams) == UDP_TOTAL
 
-    def test_icmp_messages_empty(self, parsed_pcap):
-        assert len(parsed_pcap.icmp_messages) == 0
+    def test_icmp_messages_total(self, parsed_pcap):
+        assert len(parsed_pcap.icmp_messages) == ICMP_PACKET_COUNT
 
 
 class TestTcpStreamSpotCheck:
     @pytest.fixture(autouse=True)
     def _tcp_stream(self, parsed_pcap):
-        self.tcp = parsed_pcap.tcp_segments.filter(
-            pl.col("sport") == TCP_SPORT
-        )
+        self.tcp = parsed_pcap.tcp_segments.filter(pl.col("sport") == TCP_SPORT)
 
     def test_row_count(self):
         assert len(self.tcp) == TCP_PACKET_COUNT
@@ -100,9 +101,7 @@ class TestTcpStreamSpotCheck:
     def test_src_ip(self, parsed_pcap):
         pkt_ids = self.tcp["packet_id"].to_list()
         src_ips = (
-            parsed_pcap.packets.filter(pl.col("packet_id").is_in(pkt_ids))[
-                "src_ip"
-            ]
+            parsed_pcap.packets.filter(pl.col("packet_id").is_in(pkt_ids))["src_ip"]
             .unique()
             .to_list()
         )
@@ -141,9 +140,7 @@ class TestUdpTopTalkerSpotCheck:
 class TestUdpAnomalySpotCheck:
     @pytest.fixture(autouse=True)
     def _anomaly(self, parsed_pcap):
-        self.udp = parsed_pcap.udp_datagrams.filter(
-            pl.col("sport") == ANOMALY_SPORT
-        )
+        self.udp = parsed_pcap.udp_datagrams.filter(pl.col("sport") == ANOMALY_SPORT)
 
     def test_row_count(self):
         assert len(self.udp) == ANOMALY_PACKET_COUNT
@@ -154,10 +151,41 @@ class TestUdpAnomalySpotCheck:
     def test_src_ip(self, parsed_pcap):
         pkt_ids = self.udp["packet_id"].to_list()
         src_ips = (
-            parsed_pcap.packets.filter(pl.col("packet_id").is_in(pkt_ids))[
-                "src_ip"
-            ]
+            parsed_pcap.packets.filter(pl.col("packet_id").is_in(pkt_ids))["src_ip"]
             .unique()
             .to_list()
         )
         assert src_ips == [ANOMALY_SRC_IP]
+
+
+class TestIcmpSpotCheck:
+    @pytest.fixture(autouse=True)
+    def _icmp(self, parsed_pcap):
+        self.icmp = parsed_pcap.icmp_messages
+
+    def test_row_count(self):
+        assert len(self.icmp) == ICMP_PACKET_COUNT
+
+    def test_type(self):
+        assert self.icmp["type"].unique().to_list() == [ICMP_TYPE]
+
+    def test_code(self):
+        assert self.icmp["code"].unique().to_list() == [ICMP_CODE]
+
+    def test_src_ip(self, parsed_pcap):
+        pkt_ids = self.icmp["packet_id"].to_list()
+        src_ips = (
+            parsed_pcap.packets.filter(pl.col("packet_id").is_in(pkt_ids))["src_ip"]
+            .unique()
+            .to_list()
+        )
+        assert src_ips == [ICMP_SRC_IP]
+
+    def test_dst_ip(self, parsed_pcap):
+        pkt_ids = self.icmp["packet_id"].to_list()
+        dst_ips = (
+            parsed_pcap.packets.filter(pl.col("packet_id").is_in(pkt_ids))["dst_ip"]
+            .unique()
+            .to_list()
+        )
+        assert dst_ips == [ICMP_DST_IP]

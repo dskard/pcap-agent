@@ -1,17 +1,13 @@
 """Unit tests for pcap_agent.db."""
 
 from constants import (
-    ANOMALY_PACKET_COUNT,
-    SCAN_PORT_COUNT,
-    TCP_PACKET_COUNT,
-    UDP_PACKET_COUNT,
+    ICMP_PACKET_COUNT,
+    TCP_TOTAL,
+    TOTAL_IP,
+    UDP_TOTAL,
 )
 
 from pcap_agent import db
-
-_TCP_TOTAL = TCP_PACKET_COUNT + SCAN_PORT_COUNT
-_UDP_TOTAL = UDP_PACKET_COUNT + ANOMALY_PACKET_COUNT
-_TOTAL_IP = _TCP_TOTAL + _UDP_TOTAL
 
 _EXPECTED_TABLES = {
     "packets",
@@ -45,28 +41,28 @@ class TestIngest:
     def test_packets_row_count(self, duckdb_conn, parsed_pcap):
         db.ingest(duckdb_conn, parsed_pcap)
         count = duckdb_conn.execute("SELECT COUNT(*) FROM packets").fetchone()[0]
-        assert count == _TOTAL_IP
+        assert count == TOTAL_IP
 
     def test_tcp_segments_row_count(self, duckdb_conn, parsed_pcap):
         db.ingest(duckdb_conn, parsed_pcap)
         count = duckdb_conn.execute(
             "SELECT COUNT(*) FROM tcp_segments"
         ).fetchone()[0]
-        assert count == _TCP_TOTAL
+        assert count == TCP_TOTAL
 
     def test_udp_datagrams_row_count(self, duckdb_conn, parsed_pcap):
         db.ingest(duckdb_conn, parsed_pcap)
         count = duckdb_conn.execute(
             "SELECT COUNT(*) FROM udp_datagrams"
         ).fetchone()[0]
-        assert count == _UDP_TOTAL
+        assert count == UDP_TOTAL
 
     def test_icmp_messages_row_count(self, duckdb_conn, parsed_pcap):
         db.ingest(duckdb_conn, parsed_pcap)
         count = duckdb_conn.execute(
             "SELECT COUNT(*) FROM icmp_messages"
         ).fetchone()[0]
-        assert count == 0
+        assert count == ICMP_PACKET_COUNT
 
 
 class TestGetCached:

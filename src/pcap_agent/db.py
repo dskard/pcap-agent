@@ -59,10 +59,16 @@ def create_schema(conn: duckdb.DuckDBPyConnection) -> None:
 
 def ingest(conn: duckdb.DuckDBPyConnection, frames: ParsedPcap) -> None:
     """Insert parsed DataFrames into the database tables."""
-    _load_df(conn, "packets", frames.packets)
-    _load_df(conn, "tcp_segments", frames.tcp_segments)
-    _load_df(conn, "udp_datagrams", frames.udp_datagrams)
-    _load_df(conn, "icmp_messages", frames.icmp_messages)
+    conn.begin()
+    try:
+        _load_df(conn, "packets", frames.packets)
+        _load_df(conn, "tcp_segments", frames.tcp_segments)
+        _load_df(conn, "udp_datagrams", frames.udp_datagrams)
+        _load_df(conn, "icmp_messages", frames.icmp_messages)
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
 
 
 def _load_df(
@@ -70,8 +76,11 @@ def _load_df(
 ) -> None:
     if df.is_empty():
         return
+    cols = ", ".join(df.columns)
     placeholders = ", ".join(["?" for _ in df.columns])
-    conn.executemany(f"INSERT INTO {table} VALUES ({placeholders})", df.rows())
+    conn.executemany(
+        f"INSERT INTO {table} ({cols}) VALUES ({placeholders})", df.rows()
+    )
 
 
 def get_cached(
