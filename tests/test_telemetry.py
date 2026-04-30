@@ -18,6 +18,17 @@ def reset_telemetry():
     telemetry._reset()
 
 
+@pytest.fixture(autouse=True)
+def restore_root_logger():
+    """Restore root logger handlers and level after each test."""
+    root = logging.getLogger()
+    original_level = root.level
+    original_handlers = root.handlers[:]
+    yield
+    root.handlers[:] = original_handlers
+    root.setLevel(original_level)
+
+
 @pytest.fixture()
 def memory_telemetry():
     """Configure telemetry with in-memory OTel exporters (no real OTLP server)."""
@@ -71,15 +82,6 @@ def _get_histogram_count(metric_reader, name: str) -> int:
 
 
 class TestSetupNoOp:
-    @pytest.fixture(autouse=True)
-    def restore_root_logger(self):
-        root = logging.getLogger()
-        original_level = root.level
-        original_handlers = root.handlers[:]
-        yield
-        root.handlers[:] = original_handlers
-        root.setLevel(original_level)
-
     def test_empty_endpoint_leaves_tracer_none(self):
         telemetry.setup("")
         assert telemetry._tracer is None
