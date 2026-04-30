@@ -58,16 +58,27 @@ def create_schema(conn: duckdb.DuckDBPyConnection) -> None:
 
 
 def ingest(conn: duckdb.DuckDBPyConnection, frames: ParsedPcap) -> None:
-    """Insert parsed DataFrames into the database tables."""
-    conn.begin()
+    """Insert parsed DataFrames into the database tables.
+
+    Opens its own transaction when the connection is not already inside one.
+    If the caller has an active transaction, ingest() participates in it
+    without touching commit/rollback — the caller remains responsible.
+    """
+    try:
+        conn.begin()
+        own_txn = True
+    except duckdb.TransactionException:
+        own_txn = False
     try:
         _load_df(conn, "packets", frames.packets)
         _load_df(conn, "tcp_segments", frames.tcp_segments)
         _load_df(conn, "udp_datagrams", frames.udp_datagrams)
         _load_df(conn, "icmp_messages", frames.icmp_messages)
-        conn.commit()
+        if own_txn:
+            conn.commit()
     except Exception:
-        conn.rollback()
+        if own_txn:
+            conn.rollback()
         raise
 
 
@@ -76,7 +87,7 @@ def _load_df(
 ) -> None:
     if df.is_empty():
         return
-    cols = ", ".join(df.columns)
+    cols = ", ".join(f'"{c}"' for c in df.columns)
     placeholders = ", ".join(["?" for _ in df.columns])
     conn.executemany(
         f"INSERT INTO {table} ({cols}) VALUES ({placeholders})", df.rows()

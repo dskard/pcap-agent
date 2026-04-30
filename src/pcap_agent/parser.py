@@ -81,9 +81,10 @@ def parse(pcap_path: Path | str) -> ParsedPcap:
             }
         )
 
-        # Use ip.proto to classify the outer protocol rather than haslayer(),
-        # which recurses into inner encapsulated headers (e.g. ICMP error payloads
-        # that embed an offending IP/TCP or IP/UDP datagram).
+        # ip.proto classifies by outer protocol so ICMP error packets that
+        # encapsulate an inner IP/TCP or IP/UDP header are not misrouted.
+        # haslayer() remains as a guard: malformed/truncated captures can have
+        # ip.proto == 6 but no TCP layer, causing pkt[TCP] to raise an error.
         proto = int(ip.proto)
         if proto == _PROTO_TCP and pkt.haslayer(TCP):
             tcp = pkt[TCP]
