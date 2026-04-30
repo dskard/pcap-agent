@@ -51,7 +51,10 @@ class TestAgentLogging:
         with caplog.at_level(logging.DEBUG, logger="pcap_agent.agent"):
             create_agent(api_key="test-dummy-key", model="test-model")
 
-        debug_msgs = [r for r in caplog.records if r.levelno == logging.DEBUG]
+        debug_msgs = [
+            r for r in caplog.records
+            if r.levelno == logging.DEBUG and r.name == "pcap_agent.agent"
+        ]
         assert len(debug_msgs) == 7
 
     def test_logger_uses_module_name(self):
