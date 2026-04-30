@@ -1,6 +1,10 @@
 """Read-only analysis tools: protocol breakdown and top talkers."""
 
+import logging
+
 from pcap_agent.tools import _state
+
+logger = logging.getLogger(__name__)
 
 _PROTO_MAP = {1: "ICMP", 6: "TCP", 17: "UDP"}
 
@@ -23,6 +27,7 @@ def get_protocol_breakdown() -> list[dict]:
             name = "unknown"
         pct = round(count / total * 100, 1) if total else 0.0
         result.append({"protocol": name, "count": count, "pct": pct})
+    logger.debug("get_protocol_breakdown returned %d protocol(s)", len(result))
     return result
 
 
@@ -39,4 +44,6 @@ def get_top_talkers(n: int = 10) -> list[dict]:
         "LIMIT ?",
         [n],
     ).fetchall()
-    return [{"src_ip": r[0], "packet_count": r[1]} for r in rows]
+    result = [{"src_ip": r[0], "packet_count": r[1]} for r in rows]
+    logger.debug("get_top_talkers(n=%d) returned %d result(s)", n, len(result))
+    return result

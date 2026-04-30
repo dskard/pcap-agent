@@ -1,5 +1,7 @@
 """Agent: chatlas session wired with all PCAP analysis tools."""
 
+import logging
+
 from chatlas import ChatAnthropic
 
 from pcap_agent import telemetry
@@ -8,6 +10,8 @@ from pcap_agent.tools.detection import detect_anomalies, detect_port_scans
 from pcap_agent.tools.ingest import ingest_pcap
 from pcap_agent.tools.query import query
 from pcap_agent.tools.reassembly import reassemble_stream
+
+logger = logging.getLogger(__name__)
 
 _SYSTEM_PROMPT = """\
 You are a terse, experienced network security analyst.
@@ -30,11 +34,17 @@ def create_agent(*, api_key: str, model: str) -> "ChatAnthropic":
         model=model,
         api_key=api_key,
     )
-    chat.register_tool(telemetry.instrument_tool(ingest_pcap))
-    chat.register_tool(telemetry.instrument_tool(get_protocol_breakdown))
-    chat.register_tool(telemetry.instrument_tool(get_top_talkers))
-    chat.register_tool(telemetry.instrument_tool(query))
-    chat.register_tool(telemetry.instrument_tool(detect_port_scans))
-    chat.register_tool(telemetry.instrument_tool(detect_anomalies))
-    chat.register_tool(telemetry.instrument_tool(reassemble_stream))
+    logger.info("Agent session started (model=%s)", model)
+    _tools = [
+        ingest_pcap,
+        get_protocol_breakdown,
+        get_top_talkers,
+        query,
+        detect_port_scans,
+        detect_anomalies,
+        reassemble_stream,
+    ]
+    for tool in _tools:
+        chat.register_tool(telemetry.instrument_tool(tool))
+        logger.debug("Registered tool: %s", tool.__name__)
     return chat

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import re
 from typing import Any
 
@@ -9,6 +10,8 @@ import duckdb
 
 from pcap_agent import telemetry
 from pcap_agent.tools import _state
+
+logger = logging.getLogger(__name__)
 
 _MAX_ROWS = 500
 
@@ -35,17 +38,20 @@ def query(sql: str) -> dict[str, Any]:
     """
     if not _ALLOWED_STMT_RE.match(sql):
         stmt_type = sql.strip().split()[0].upper() if sql.strip() else "(empty)"
+        logger.warning("Rejected statement type: %s", stmt_type)
         return {
             "error": f"Statement type '{stmt_type}' is not allowed.",
             "hint": "Only SELECT and CREATE TEMP VIEW statements are permitted.",
         }
 
     conn = _state.require_connection()
+    logger.debug("Executing SQL: %s", sql)
 
     try:
         relation = conn.execute(sql)
         telemetry.record_queries_run()
     except duckdb.Error as exc:
+        logger.error("DuckDB error: %s", exc)
         return {
             "error": str(exc),
             "hint": "Check your SQL syntax and column/table names.",
@@ -62,8 +68,10 @@ def query(sql: str) -> dict[str, Any]:
     truncated = len(fetched) > _MAX_ROWS
     rows = fetched[:_MAX_ROWS]
 
+    row_count = len(rows)
+    logger.info("Query returned %d row(s)", row_count)
     return {
         "rows": [dict(zip(columns, row)) for row in rows],
         "truncated": truncated,
-        "row_count": len(rows),
+        "row_count": row_count,
     }
