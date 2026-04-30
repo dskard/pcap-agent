@@ -7,6 +7,7 @@ from typing import Any
 
 import duckdb
 
+from pcap_agent import telemetry
 from pcap_agent.tools import _state
 
 _MAX_ROWS = 500
@@ -43,6 +44,7 @@ def query(sql: str) -> dict[str, Any]:
 
     try:
         relation = conn.execute(sql)
+        telemetry.record_queries_run()
     except duckdb.Error as exc:
         return {
             "error": str(exc),

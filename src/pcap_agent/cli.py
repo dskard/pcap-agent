@@ -82,6 +82,10 @@ def main(
     os.environ["OTEL_EXPORTER_OTLP_ENDPOINT"] = otlp_endpoint
     os.environ["PCAP_AGENT_VERBOSE"] = "1" if verbose else ""
 
+    from pcap_agent import telemetry
+
+    telemetry.setup(otlp_endpoint, verbose)
+
     if pcap_file:
         from rich.progress import Progress, SpinnerColumn, TextColumn
 

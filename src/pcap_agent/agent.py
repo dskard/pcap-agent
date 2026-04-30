@@ -2,6 +2,7 @@
 
 from chatlas import ChatAnthropic
 
+from pcap_agent import telemetry
 from pcap_agent.tools.analysis import get_protocol_breakdown, get_top_talkers
 from pcap_agent.tools.detection import detect_anomalies, detect_port_scans
 from pcap_agent.tools.ingest import ingest_pcap
@@ -29,11 +30,11 @@ def create_agent(*, api_key: str, model: str) -> "ChatAnthropic":
         model=model,
         api_key=api_key,
     )
-    chat.register_tool(ingest_pcap)
-    chat.register_tool(get_protocol_breakdown)
-    chat.register_tool(get_top_talkers)
-    chat.register_tool(query)
-    chat.register_tool(detect_port_scans)
-    chat.register_tool(detect_anomalies)
-    chat.register_tool(reassemble_stream)
+    chat.register_tool(telemetry.instrument_tool(ingest_pcap))
+    chat.register_tool(telemetry.instrument_tool(get_protocol_breakdown))
+    chat.register_tool(telemetry.instrument_tool(get_top_talkers))
+    chat.register_tool(telemetry.instrument_tool(query))
+    chat.register_tool(telemetry.instrument_tool(detect_port_scans))
+    chat.register_tool(telemetry.instrument_tool(detect_anomalies))
+    chat.register_tool(telemetry.instrument_tool(reassemble_stream))
     return chat
