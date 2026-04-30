@@ -98,6 +98,17 @@ def _load_df(
     )
 
 
+def set_cached(
+    conn: duckdb.DuckDBPyConnection, sha256: str, pcap_path: str
+) -> None:
+    """Insert sha256 and pcap_path into pcap_meta; no-op if sha256 already exists."""
+    conn.execute(
+        "INSERT INTO pcap_meta (sha256, pcap_path) VALUES (?, ?)"
+        " ON CONFLICT (sha256) DO NOTHING",
+        [sha256, pcap_path],
+    )
+
+
 def get_cached(
     conn: duckdb.DuckDBPyConnection, sha256: str
 ) -> dict[str, Any] | None:

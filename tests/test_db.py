@@ -105,15 +105,32 @@ class TestIngestCallerTransaction:
         assert count == 0
 
 
+class TestSetCached:
+    _SHA256 = "c" * 64
+    _PATH = "/tmp/set_test.pcap"
+
+    def test_inserts_row(self, duckdb_conn):
+        db.set_cached(duckdb_conn, self._SHA256, self._PATH)
+        result = db.get_cached(duckdb_conn, self._SHA256)
+        assert result is not None
+        assert result["sha256"] == self._SHA256
+        assert result["pcap_path"] == self._PATH
+
+    def test_idempotent(self, duckdb_conn):
+        db.set_cached(duckdb_conn, self._SHA256, self._PATH)
+        db.set_cached(duckdb_conn, self._SHA256, self._PATH)
+        count = duckdb_conn.execute(
+            "SELECT COUNT(*) FROM pcap_meta WHERE sha256 = ?", [self._SHA256]
+        ).fetchone()[0]
+        assert count == 1
+
+
 class TestGetCached:
     _SHA256 = "a" * 64
     _PATH = "/tmp/test.pcap"
 
     def _insert(self, conn):
-        conn.execute(
-            "INSERT INTO pcap_meta (sha256, pcap_path) VALUES (?, ?)",
-            [self._SHA256, self._PATH],
-        )
+        db.set_cached(conn, self._SHA256, self._PATH)
 
     def test_cache_hit(self, duckdb_conn):
         self._insert(duckdb_conn)

@@ -68,7 +68,9 @@ def test_synthetic_pcap_anomalies(synthetic_pcap):
 def test_synthetic_pcap_icmp(synthetic_pcap):
     pkts = rdpcap(str(synthetic_pcap))
     icmp_pkts = [
-        p for p in pkts if p.haslayer("ICMP") and p["IP"].src == ICMP_SRC_IP
+        p
+        for p in pkts
+        if p.haslayer("IP") and p.haslayer("ICMP") and p["IP"].src == ICMP_SRC_IP
     ]
     assert len(icmp_pkts) == ICMP_PACKET_COUNT
     assert all(p["ICMP"].type == ICMP_TYPE for p in icmp_pkts)
