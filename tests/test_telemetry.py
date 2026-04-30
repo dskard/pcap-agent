@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -15,6 +16,17 @@ def reset_telemetry():
     telemetry._reset()
     yield
     telemetry._reset()
+
+
+@pytest.fixture(autouse=True)
+def restore_root_logger():
+    """Restore root logger handlers and level after each test."""
+    root = logging.getLogger()
+    original_level = root.level
+    original_handlers = root.handlers[:]
+    yield
+    root.handlers[:] = original_handlers
+    root.setLevel(original_level)
 
 
 @pytest.fixture()
@@ -87,6 +99,10 @@ class TestSetupNoOp:
 
     def test_empty_endpoint_does_not_raise(self):
         telemetry.setup("")
+
+    def test_no_endpoint_sets_root_logger_level(self):
+        telemetry.setup("", log_level="DEBUG")
+        assert logging.getLogger().level == logging.DEBUG
 
 
 class TestSetupWithEndpoint:

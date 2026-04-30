@@ -15,7 +15,10 @@ class Config:
     pcap_agent_ui: str
     pcap_agent_db_dir: str
     otel_exporter_otlp_endpoint: str
-    pcap_agent_verbose: bool
+    pcap_agent_log_level: str
+
+
+_VALID_LOG_LEVELS = {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}
 
 
 def _load() -> Config:
@@ -25,6 +28,12 @@ def _load() -> Config:
             "ANTHROPIC_API_KEY is not set. "
             "Provide it in your environment or .env file."
         )
+    log_level = os.environ.get("PCAP_AGENT_LOG_LEVEL", "WARNING").upper()
+    if log_level not in _VALID_LOG_LEVELS:
+        raise ValueError(
+            f"PCAP_AGENT_LOG_LEVEL must be one of {sorted(_VALID_LOG_LEVELS)}, "
+            f"got {log_level!r}"
+        )
     return Config(
         anthropic_api_key=api_key,
         anthropic_model=os.environ.get("ANTHROPIC_MODEL", "claude-sonnet-4-6"),
@@ -33,8 +42,7 @@ def _load() -> Config:
             os.environ.get("PCAP_AGENT_DB_DIR", "~/.cache/pcap-agent")
         ),
         otel_exporter_otlp_endpoint=os.environ.get("OTEL_EXPORTER_OTLP_ENDPOINT", ""),
-        pcap_agent_verbose=os.environ.get("PCAP_AGENT_VERBOSE", "").lower()
-        in ("1", "true", "yes"),
+        pcap_agent_log_level=log_level,
     )
 
 
