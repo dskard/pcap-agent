@@ -34,8 +34,12 @@ def ingest_pcap(path: str | Path, db_dir: str | None = None) -> dict[str, Any]:
     else:
         old_conn = _state.get_connection()
         conn = duckdb.connect(db_path)
-        db.create_schema(conn)
-        _state.set_connection(conn, db_path)
+        try:
+            db.create_schema(conn)
+            _state.set_connection(conn, db_path)
+        except Exception:
+            conn.close()
+            raise
         if old_conn is not None:
             old_conn.close()
 
