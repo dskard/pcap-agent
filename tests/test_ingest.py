@@ -1,5 +1,6 @@
 """Integration tests for tools.ingest.ingest_pcap."""
 
+import duckdb
 import pytest
 from constants import (
     ICMP_PACKET_COUNT,
@@ -8,20 +9,28 @@ from constants import (
     UDP_TOTAL,
 )
 
-from pcap_agent.tools import _state  # noqa: F401 — used by _restore_state
+from pcap_agent.tools import _state
 from pcap_agent.tools.ingest import ingest_pcap
 
 
 @pytest.fixture
 def _restore_state():
-    """Restore _state after a test that temporarily changes the connection."""
-    saved_conn = _state.get_connection()
+    """Restore _state after a test that temporarily changes the connection.
+
+    ingest_pcap closes the previous connection when switching databases, so we
+    cannot restore the saved connection object — it will already be closed.
+    Instead we re-open the saved db_path after the test.
+    """
     saved_path = _state.get_db_path()
     yield
     new_conn = _state.get_connection()
-    _state.reset(saved_conn, saved_path)
-    if new_conn is not None and new_conn is not saved_conn:
+    if new_conn is not None:
         new_conn.close()
+    if saved_path is not None:
+        restored = duckdb.connect(saved_path)
+        _state.set_connection(restored, saved_path)
+    else:
+        _state.reset()
 
 
 class TestIngestPcap:
