@@ -28,6 +28,8 @@ def setup(endpoint: str = "", log_level: str = "WARNING") -> None:
     if not endpoint:
         return
 
+    logging.getLogger("urllib3").setLevel(logging.WARNING)
+
     from opentelemetry import metrics as otel_metrics
     from opentelemetry import trace
     from opentelemetry._logs import set_logger_provider
