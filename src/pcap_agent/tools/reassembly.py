@@ -33,7 +33,7 @@ def reassemble_stream(
     if proto == "TCP":
         rows = conn.execute(
             """
-            SELECT t.payload
+            SELECT FIRST(t.payload) AS payload
             FROM tcp_segments t
             JOIN packets p ON p.packet_id = t.packet_id
             WHERE p.src_ip = ?
@@ -41,6 +41,7 @@ def reassemble_stream(
               AND t.sport = ?
               AND t.dport = ?
               AND p.protocol = ?
+            GROUP BY t.seq
             ORDER BY t.seq
             """,
             [src_ip, dst_ip, src_port, dst_port, proto_num],
@@ -76,7 +77,7 @@ def reassemble_stream(
             continue
         chunk = bytes(payload) if not isinstance(payload, bytes) else payload
         remaining = _MAX_BYTES - total
-        if len(chunk) >= remaining:
+        if len(chunk) > remaining:
             chunks.append(chunk[:remaining])
             total += remaining
             truncated = True

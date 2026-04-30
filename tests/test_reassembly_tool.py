@@ -141,8 +141,63 @@ class TestTruncationAt64KB:
         yield duckdb_conn
         _state.set_connection(old, old_path) if old else _state.reset()
 
+    @pytest.fixture()
+    def exact_fill_conn(self, duckdb_conn):
+        exact_payload = b"A" * _MAX_BYTES  # exactly 64 KB, no overflow
+        duckdb_conn.execute(
+            "INSERT INTO packets "
+            "VALUES (1, 1700000000.0, '1.1.1.1', '2.2.2.2', 6, 65536, 64)"
+        )
+        duckdb_conn.execute(
+            "INSERT INTO tcp_segments VALUES (1, 5000, 80, 'PA', 1000, 0, ?)",
+            [exact_payload],
+        )
+        old = _state.get_connection()
+        old_path = _state.get_db_path()
+        _state.set_connection(duckdb_conn, ":memory:")
+        yield duckdb_conn
+        _state.set_connection(old, old_path) if old else _state.reset()
+
     def test_single_oversized_chunk_truncated(self, oversized_conn):  # noqa: ARG002
         result = reassemble_stream("1.1.1.1", "2.2.2.2", 5000, 80, "TCP")
 
         assert result["truncated"] is True
         assert len(result["payload"].encode()) == _MAX_BYTES
+
+    def test_exact_fill_chunk_not_truncated(self, exact_fill_conn):  # noqa: ARG002
+        """A chunk that exactly fills 64 KB must not set truncated=True."""
+        result = reassemble_stream("1.1.1.1", "2.2.2.2", 5000, 80, "TCP")
+
+        assert result["truncated"] is False
+        assert len(result["payload"].encode()) == _MAX_BYTES
+
+
+class TestTCPRetransmission:
+    """Retransmitted segments (duplicate seq numbers) must not double-count payload."""
+
+    @pytest.fixture()
+    def retransmit_conn(self, duckdb_conn):
+        payload = b"hello"
+        duckdb_conn.execute(
+            "INSERT INTO packets VALUES (1, 1700000000.0, '1.1.1.1', '2.2.2.2', 6, 50, 64)"
+        )
+        duckdb_conn.execute(
+            "INSERT INTO packets VALUES (2, 1700000001.0, '1.1.1.1', '2.2.2.2', 6, 50, 64)"
+        )
+        duckdb_conn.execute(
+            "INSERT INTO tcp_segments VALUES (1, 5000, 80, 'PA', 1000, 0, ?)", [payload]
+        )
+        duckdb_conn.execute(
+            "INSERT INTO tcp_segments VALUES (2, 5000, 80, 'PA', 1000, 0, ?)", [payload]
+        )
+        old = _state.get_connection()
+        old_path = _state.get_db_path()
+        _state.set_connection(duckdb_conn, ":memory:")
+        yield duckdb_conn
+        _state.set_connection(old, old_path) if old else _state.reset()
+
+    def test_retransmitted_segments_not_duplicated(self, retransmit_conn):  # noqa: ARG002
+        result = reassemble_stream("1.1.1.1", "2.2.2.2", 5000, 80, "TCP")
+
+        assert "error" not in result
+        assert result["payload"] == "hello"
