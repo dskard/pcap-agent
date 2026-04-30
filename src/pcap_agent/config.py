@@ -15,7 +15,7 @@ class Config:
     pcap_agent_ui: str
     pcap_agent_db_dir: str
     otel_exporter_otlp_endpoint: str
-    pcap_agent_verbose: bool
+    pcap_agent_log_level: str
 
 
 def _load() -> Config:
@@ -33,8 +33,7 @@ def _load() -> Config:
             os.environ.get("PCAP_AGENT_DB_DIR", "~/.cache/pcap-agent")
         ),
         otel_exporter_otlp_endpoint=os.environ.get("OTEL_EXPORTER_OTLP_ENDPOINT", ""),
-        pcap_agent_verbose=os.environ.get("PCAP_AGENT_VERBOSE", "").lower()
-        in ("1", "true", "yes"),
+        pcap_agent_log_level=os.environ.get("PCAP_AGENT_LOG_LEVEL", "WARNING"),
     )
 
 

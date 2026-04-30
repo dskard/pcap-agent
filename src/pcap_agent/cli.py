@@ -43,10 +43,12 @@ import click
     help="OpenTelemetry OTLP exporter endpoint [env: OTEL_EXPORTER_OTLP_ENDPOINT]",
 )
 @click.option(
-    "--verbose",
-    is_flag=True,
-    default=False,
-    help="Enable verbose logging [env: PCAP_AGENT_VERBOSE]",
+    "--log-level",
+    envvar="PCAP_AGENT_LOG_LEVEL",
+    default="WARNING",
+    show_default=True,
+    type=click.Choice(["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]),
+    help="Logging level [env: PCAP_AGENT_LOG_LEVEL]",
 )
 def main(
     pcap_file: str | None,
@@ -55,14 +57,12 @@ def main(
     ui: str,
     db_dir: str,
     otlp_endpoint: str,
-    verbose: bool,
+    log_level: str,
 ) -> None:
     """PCAP analysis agent powered by Claude.
 
     Optionally provide a PCAP_FILE to ingest before starting the chat session.
     """
-    verbose = verbose or bool(os.environ.get("PCAP_AGENT_VERBOSE", ""))
-
     if not api_key:
         click.echo(
             "Error: ANTHROPIC_API_KEY is not set. "
@@ -80,11 +80,11 @@ def main(
     os.environ["PCAP_AGENT_UI"] = ui
     os.environ["PCAP_AGENT_DB_DIR"] = db_dir_expanded
     os.environ["OTEL_EXPORTER_OTLP_ENDPOINT"] = otlp_endpoint
-    os.environ["PCAP_AGENT_VERBOSE"] = "1" if verbose else ""
+    os.environ["PCAP_AGENT_LOG_LEVEL"] = log_level
 
     from pcap_agent import telemetry
 
-    telemetry.setup(otlp_endpoint, verbose)
+    telemetry.setup(otlp_endpoint, log_level)
 
     if pcap_file:
         from rich.progress import Progress, SpinnerColumn, TextColumn

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -87,6 +88,15 @@ class TestSetupNoOp:
 
     def test_empty_endpoint_does_not_raise(self):
         telemetry.setup("")
+
+    def test_no_endpoint_sets_root_logger_level(self):
+        root = logging.getLogger()
+        original_level = root.level
+        try:
+            telemetry.setup("", log_level="DEBUG")
+            assert root.level == logging.DEBUG
+        finally:
+            root.setLevel(original_level)
 
 
 class TestSetupWithEndpoint:

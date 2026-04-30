@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import functools
 import inspect
+import logging
+import sys
 import time
 from typing import Any, Callable
 
@@ -12,9 +14,16 @@ _meter: Any = None
 _metrics: dict[str, Any] = {}
 
 
-def setup(endpoint: str = "", verbose: bool = False) -> None:
+def setup(endpoint: str = "", log_level: str = "WARNING") -> None:
     """Initialize OTel SDK with OTLP HTTP exporters. No-op if endpoint is empty."""
     global _tracer, _meter, _metrics
+
+    logging.basicConfig(
+        stream=sys.stderr,
+        level=log_level,
+        format="%(asctime)s %(levelname)s %(name)s %(message)s",
+    )
+    logging.getLogger().setLevel(log_level)
 
     if not endpoint:
         return
@@ -79,7 +88,7 @@ def setup(endpoint: str = "", verbose: bool = False) -> None:
         BatchLogRecordProcessor(OTLPLogExporter(endpoint=f"{base}/v1/logs"))
     )
     set_logger_provider(lp)
-    LoggingInstrumentor().instrument(set_logging_format=verbose)
+    LoggingInstrumentor().instrument()
 
 
 def instrument_tool(func: Callable) -> Callable:
