@@ -65,6 +65,24 @@ class TestIngest:
         assert count == ICMP_PACKET_COUNT
 
 
+class TestIngestRollback:
+    """Verify ingest() rolls back on mid-ingest failure."""
+
+    def test_rollback_on_failure(self, duckdb_conn, parsed_pcap):
+        # Pre-insert packet_id=0 to trigger a PRIMARY KEY violation on the
+        # second ingest() call, forcing a failure after _load_df("packets").
+        duckdb_conn.execute(
+            "INSERT INTO packets VALUES (0, 0.0, '0.0.0.0', '0.0.0.0', 0, 0, 0)"
+        )
+        import pytest
+
+        with pytest.raises(Exception):
+            db.ingest(duckdb_conn, parsed_pcap)
+        # packets must still contain only the one pre-inserted row.
+        count = duckdb_conn.execute("SELECT COUNT(*) FROM packets").fetchone()[0]
+        assert count == 1
+
+
 class TestIngestCallerTransaction:
     """Tests for ingest() when the caller owns the active transaction."""
 

@@ -14,7 +14,7 @@ from constants import (
     TCP_DST_IP,
     TCP_PACKET_COUNT,
     TCP_SRC_IP,
-    TOTAL_IP,
+    TOTAL_FRAMES,
     UDP_PACKET_COUNT,
     UDP_TOP_TALKER_IP,
 )
@@ -29,7 +29,7 @@ def test_synthetic_pcap_exists(synthetic_pcap):
 
 def test_synthetic_pcap_packet_counts(synthetic_pcap):
     pkts = rdpcap(str(synthetic_pcap))
-    assert len(pkts) == TOTAL_IP
+    assert len(pkts) == TOTAL_FRAMES
 
 
 def test_synthetic_pcap_tcp_stream(synthetic_pcap):
