@@ -124,6 +124,13 @@ class TestSetCached:
         ).fetchone()[0]
         assert count == 1
 
+    def test_conflict_different_path_first_writer_wins(self, duckdb_conn):
+        # ON CONFLICT DO NOTHING: first path is kept, second is silently dropped.
+        db.set_cached(duckdb_conn, self._SHA256, self._PATH)
+        db.set_cached(duckdb_conn, self._SHA256, "/tmp/other.pcap")
+        result = db.get_cached(duckdb_conn, self._SHA256)
+        assert result["pcap_path"] == self._PATH
+
 
 class TestGetCached:
     _SHA256 = "a" * 64
