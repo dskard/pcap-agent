@@ -71,6 +71,15 @@ def _get_histogram_count(metric_reader, name: str) -> int:
 
 
 class TestSetupNoOp:
+    @pytest.fixture(autouse=True)
+    def restore_root_logger(self):
+        root = logging.getLogger()
+        original_level = root.level
+        original_handlers = root.handlers[:]
+        yield
+        root.handlers[:] = original_handlers
+        root.setLevel(original_level)
+
     def test_empty_endpoint_leaves_tracer_none(self):
         telemetry.setup("")
         assert telemetry._tracer is None
@@ -90,15 +99,8 @@ class TestSetupNoOp:
         telemetry.setup("")
 
     def test_no_endpoint_sets_root_logger_level(self):
-        root = logging.getLogger()
-        original_level = root.level
-        original_handlers = root.handlers[:]
-        try:
-            telemetry.setup("", log_level="DEBUG")
-            assert root.level == logging.DEBUG
-        finally:
-            root.handlers[:] = original_handlers
-            root.setLevel(original_level)
+        telemetry.setup("", log_level="DEBUG")
+        assert logging.getLogger().level == logging.DEBUG
 
 
 class TestSetupWithEndpoint:
