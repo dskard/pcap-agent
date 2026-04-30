@@ -1,29 +1,35 @@
 """Shared pytest fixtures, including the synthetic PCAP test fixture."""
 
+import os
+
 import pytest
+from constants import (
+    ANOMALY_DPORT,
+    ANOMALY_DST_IP,
+    ANOMALY_PACKET_COUNT,
+    ANOMALY_SPORT,
+    ANOMALY_SRC_IP,
+    SCAN_PORT_COUNT,
+    SCAN_TARGET_IP,
+    SCANNER_IP,
+    SCANNER_SPORT,
+    TCP_DPORT,
+    TCP_DST_IP,
+    TCP_PACKET_COUNT,
+    TCP_SPORT,
+    TCP_SRC_IP,
+    UDP_DPORT,
+    UDP_PACKET_COUNT,
+    UDP_SPORT,
+    UDP_TARGET_IP,
+    UDP_TOP_TALKER_IP,
+)
 from scapy.all import IP, TCP, UDP, Raw, wrpcap  # type: ignore[import-untyped]
 
-TCP_SRC_IP = "10.0.0.1"
-TCP_DST_IP = "10.0.0.2"
-UDP_TOP_TALKER_IP = "192.168.1.100"
-UDP_TARGET_IP = "192.168.1.1"
-SCANNER_IP = "10.0.2.1"
-SCAN_TARGET_IP = "10.0.2.100"
-ANOMALY_SRC_IP = "10.0.4.1"
-ANOMALY_DST_IP = "10.0.4.2"
 
-TCP_SPORT = 54321
-TCP_DPORT = 80
-UDP_SPORT = 12345
-UDP_DPORT = 53
-SCANNER_SPORT = 55000
-SCAN_PORT_COUNT = 20
-ANOMALY_SPORT = 9999
-ANOMALY_DPORT = 9998
-
-TCP_PACKET_COUNT = 50
-UDP_PACKET_COUNT = 200
-ANOMALY_PACKET_COUNT = 5
+def pytest_configure(config):  # noqa: ARG001
+    """Ensure ANTHROPIC_API_KEY is set so config.py can be imported in tests."""
+    os.environ.setdefault("ANTHROPIC_API_KEY", "test-dummy-key")
 
 
 @pytest.fixture(scope="session")

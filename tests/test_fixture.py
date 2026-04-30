@@ -2,8 +2,9 @@
 
 from pathlib import Path
 
-from conftest import (
+from constants import (
     ANOMALY_PACKET_COUNT,
+    ANOMALY_SRC_IP,
     SCAN_PORT_COUNT,
     SCAN_TARGET_IP,
     SCANNER_IP,
@@ -55,7 +56,7 @@ def test_synthetic_pcap_port_scanner(synthetic_pcap):
 def test_synthetic_pcap_anomalies(synthetic_pcap):
     pkts = rdpcap(str(synthetic_pcap))
     anomaly_pkts = [
-        p for p in pkts if p.haslayer("UDP") and p["IP"].src == "10.0.4.1"
+        p for p in pkts if p.haslayer("UDP") and p["IP"].src == ANOMALY_SRC_IP
     ]
     assert len(anomaly_pkts) == ANOMALY_PACKET_COUNT
     assert all(len(p) > 8000 for p in anomaly_pkts)
