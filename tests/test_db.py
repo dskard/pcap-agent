@@ -65,6 +65,26 @@ class TestIngest:
         assert count == ICMP_PACKET_COUNT
 
 
+class TestIngestCallerTransaction:
+    """Tests for ingest() when the caller owns the active transaction."""
+
+    def test_participates_in_caller_transaction(self, duckdb_conn, parsed_pcap):
+        duckdb_conn.begin()
+        db.ingest(duckdb_conn, parsed_pcap, begin_transaction=False)
+        count = duckdb_conn.execute("SELECT COUNT(*) FROM packets").fetchone()[0]
+        assert count == TOTAL_IP
+        duckdb_conn.commit()
+        count = duckdb_conn.execute("SELECT COUNT(*) FROM packets").fetchone()[0]
+        assert count == TOTAL_IP
+
+    def test_does_not_commit_caller_transaction(self, duckdb_conn, parsed_pcap):
+        duckdb_conn.begin()
+        db.ingest(duckdb_conn, parsed_pcap, begin_transaction=False)
+        duckdb_conn.rollback()
+        count = duckdb_conn.execute("SELECT COUNT(*) FROM packets").fetchone()[0]
+        assert count == 0
+
+
 class TestGetCached:
     _SHA256 = "a" * 64
     _PATH = "/tmp/test.pcap"
