@@ -3,12 +3,14 @@
 import logging
 from unittest.mock import MagicMock, patch
 
+import duckdb
 import pytest
 from click.testing import CliRunner
 from constants import TOTAL_FRAMES, UDP_TOP_TALKER_IP
 
 import pcap_agent.telemetry as telemetry
 from pcap_agent.cli import main
+from pcap_agent.tools import _state
 
 
 @pytest.fixture()
@@ -21,6 +23,28 @@ def mock_chat():
     chat = MagicMock()
     chat.console.return_value = None
     return chat
+
+
+@pytest.fixture(autouse=True)
+def _restore_state():
+    """Save and restore _state around each test.
+
+    CLI tests call ingest_pcap in-process, which closes the prior connection
+    and points _state._conn at a tmp_path DB that is deleted after the test.
+    Re-opening the saved path prevents state pollution for session fixtures.
+    """
+    saved_path = _state.get_db_path()
+    yield
+    current = _state.get_connection()
+    if current is not None:
+        try:
+            current.close()
+        except Exception:
+            pass
+    if saved_path is not None:
+        _state.set_connection(duckdb.connect(saved_path), saved_path)
+    else:
+        _state.reset()
 
 
 class TestCliSynopsis:
