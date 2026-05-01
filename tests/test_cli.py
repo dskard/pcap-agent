@@ -1,11 +1,13 @@
 """Tests for the CLI entry point."""
 
+import logging
 from unittest.mock import MagicMock, patch
 
 import pytest
 from click.testing import CliRunner
 from constants import TOTAL_FRAMES, UDP_TOP_TALKER_IP
 
+import pcap_agent.telemetry as telemetry
 from pcap_agent.cli import main
 
 
@@ -86,3 +88,56 @@ class TestCliSynopsis:
         result = self._invoke(cli_runner, mock_chat, synthetic_pcap, str(tmp_path))
         assert result.exit_code == 0, result.output
         assert UDP_TOP_TALKER_IP in result.output
+
+
+class TestCliLogFile:
+    """CLI --log-file option routes logs to a file."""
+
+    @pytest.fixture(autouse=True)
+    def _reset_telemetry(self):
+        telemetry._reset()
+        root = logging.getLogger()
+        orig_level = root.level
+        orig_handlers = root.handlers[:]
+        yield
+        telemetry._reset()
+        root.handlers[:] = orig_handlers
+        root.setLevel(orig_level)
+
+    def test_log_file_produces_nonempty_file(
+        self, synthetic_pcap, tmp_path
+    ):
+        log_path = tmp_path / "agent.log"
+        db_dir = tmp_path / "db"
+        db_dir.mkdir()
+        mock_chat = MagicMock()
+        mock_chat.console.return_value = None
+        runner = CliRunner()
+        with patch("pcap_agent.agent.create_agent", return_value=mock_chat):
+            result = runner.invoke(
+                main,
+                [
+                    str(synthetic_pcap),
+                    "--api-key", "test-key",
+                    "--db-dir", str(db_dir),
+                    "--log-level", "DEBUG",
+                    "--log-file", str(log_path),
+                ],
+                catch_exceptions=False,
+            )
+        assert result.exit_code == 0, result.output
+        assert log_path.exists()
+        assert log_path.stat().st_size > 0
+
+    def test_bad_log_file_path_exits_with_error(self, tmp_path):
+        bad_path = str(tmp_path / "no_such_dir" / "agent.log")
+        runner = CliRunner()
+        result = runner.invoke(
+            main,
+            [
+                "--api-key", "test-key",
+                "--log-file", bad_path,
+            ],
+        )
+        assert result.exit_code != 0
+        assert "Error" in result.output or "Error" in (result.output or "")

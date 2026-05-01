@@ -12,18 +12,31 @@ from typing import Any, Callable
 _tracer: Any = None
 _meter: Any = None
 _metrics: dict[str, Any] = {}
+_file_handler: logging.FileHandler | None = None
 
 
-def setup(endpoint: str = "", log_level: str = "WARNING") -> None:
+def setup(endpoint: str = "", log_level: str = "WARNING", log_file: str = "") -> None:
     """Initialize OTel SDK with OTLP HTTP exporters. No-op if endpoint is empty."""
-    global _tracer, _meter, _metrics
+    global _tracer, _meter, _metrics, _file_handler
 
-    logging.basicConfig(
-        stream=sys.stderr,
-        level=log_level,
-        format="%(asctime)s %(levelname)s %(name)s %(message)s",
-        force=True,
-    )
+    fmt = "%(asctime)s %(levelname)s %(name)s %(message)s"
+    if log_file:
+        handler = logging.FileHandler(log_file, mode="a")
+        handler.setFormatter(logging.Formatter(fmt))
+        logging.basicConfig(
+            handlers=[handler],
+            level=log_level,
+            format=fmt,
+            force=True,
+        )
+        _file_handler = handler
+    else:
+        logging.basicConfig(
+            stream=sys.stderr,
+            level=log_level,
+            format=fmt,
+            force=True,
+        )
 
     if not endpoint:
         return
@@ -155,8 +168,12 @@ def _record_latency(tool_name: str, elapsed: float) -> None:
 
 def _reset() -> None:
     """Reset module state. For testing only."""
-    global _tracer, _meter, _metrics
+    global _tracer, _meter, _metrics, _file_handler
     _tracer = None
     _meter = None
     _metrics = {}
     logging.getLogger("urllib3").setLevel(logging.NOTSET)
+    if _file_handler is not None:
+        logging.getLogger().removeHandler(_file_handler)
+        _file_handler.close()
+        _file_handler = None

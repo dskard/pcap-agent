@@ -73,6 +73,13 @@ def _print_synopsis(pcap_file: str, result: dict[str, Any]) -> None:
     type=click.Choice(["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]),
     help="Logging level [env: PCAP_AGENT_LOG_LEVEL]",
 )
+@click.option(
+    "--log-file",
+    envvar="PCAP_AGENT_LOG_FILE",
+    default="",
+    help="Route log output to this file (append mode) instead of stderr"
+    " [env: PCAP_AGENT_LOG_FILE]",
+)
 def main(
     pcap_file: str | None,
     api_key: str,
@@ -81,6 +88,7 @@ def main(
     db_dir: str,
     otlp_endpoint: str,
     log_level: str,
+    log_file: str,
 ) -> None:
     """PCAP analysis agent powered by Claude.
 
@@ -104,10 +112,15 @@ def main(
     os.environ["PCAP_AGENT_DB_DIR"] = db_dir_expanded
     os.environ["OTEL_EXPORTER_OTLP_ENDPOINT"] = otlp_endpoint
     os.environ["PCAP_AGENT_LOG_LEVEL"] = log_level
+    os.environ["PCAP_AGENT_LOG_FILE"] = log_file
 
     from pcap_agent import telemetry
 
-    telemetry.setup(otlp_endpoint, log_level)
+    try:
+        telemetry.setup(otlp_endpoint, log_level, log_file)
+    except OSError as exc:
+        click.echo(f"Error: cannot open log file: {exc}", err=True)
+        sys.exit(1)
 
     if pcap_file:
         from rich.progress import Progress, SpinnerColumn, TextColumn
