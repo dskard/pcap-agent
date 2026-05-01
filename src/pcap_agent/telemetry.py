@@ -19,6 +19,11 @@ def setup(endpoint: str = "", log_level: str = "WARNING", log_file: str = "") ->
     """Initialize OTel SDK with OTLP HTTP exporters. No-op if endpoint is empty."""
     global _tracer, _meter, _metrics, _file_handler
 
+    if _file_handler is not None:
+        logging.getLogger().removeHandler(_file_handler)
+        _file_handler.close()
+        _file_handler = None
+
     fmt = "%(asctime)s %(levelname)s %(name)s %(message)s"
     if log_file:
         handler = logging.FileHandler(log_file, mode="a")
