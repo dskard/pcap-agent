@@ -159,3 +159,4 @@ def _reset() -> None:
     _tracer = None
     _meter = None
     _metrics = {}
+    logging.getLogger("urllib3").setLevel(logging.NOTSET)
