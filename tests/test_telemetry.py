@@ -267,3 +267,38 @@ class TestMetricRecording:
         _, metric_reader = memory_telemetry
         telemetry.record_anomalies_detected(3)
         assert _get_metric_sum(metric_reader, "pcap_agent.anomalies_detected") == 3
+
+
+class TestSetupLogFile:
+    def test_file_handler_wired_when_log_file_given(self, tmp_path):
+        log_path = tmp_path / "test.log"
+        telemetry.setup("", log_level="DEBUG", log_file=str(log_path))
+        root = logging.getLogger()
+        assert any(
+            isinstance(h, logging.FileHandler) and h.baseFilename == str(log_path)
+            for h in root.handlers
+        )
+
+    def test_stderr_default_when_no_log_file(self):
+        telemetry.setup("", log_level="WARNING")
+        root = logging.getLogger()
+        assert not any(isinstance(h, logging.FileHandler) for h in root.handlers)
+
+    def test_bad_path_raises_os_error(self, tmp_path):
+        bad_path = str(tmp_path / "nonexistent_dir" / "test.log")
+        with pytest.raises(OSError):
+            telemetry.setup("", log_file=bad_path)
+
+    def test_reset_closes_file_handler(self, tmp_path):
+        log_path = tmp_path / "test.log"
+        telemetry.setup("", log_file=str(log_path))
+        assert telemetry._file_handler is not None
+        telemetry._reset()
+        assert telemetry._file_handler is None
+
+    def test_reset_removes_file_handler_from_root_logger(self, tmp_path):
+        log_path = tmp_path / "test.log"
+        telemetry.setup("", log_file=str(log_path))
+        telemetry._reset()
+        root = logging.getLogger()
+        assert not any(isinstance(h, logging.FileHandler) for h in root.handlers)

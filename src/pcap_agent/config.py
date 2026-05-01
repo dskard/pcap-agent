@@ -16,6 +16,7 @@ class Config:
     pcap_agent_db_dir: str
     otel_exporter_otlp_endpoint: str
     pcap_agent_log_level: str
+    pcap_agent_log_file: str
 
 
 _VALID_LOG_LEVELS = {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}
@@ -43,6 +44,7 @@ def _load() -> Config:
         ),
         otel_exporter_otlp_endpoint=os.environ.get("OTEL_EXPORTER_OTLP_ENDPOINT", ""),
         pcap_agent_log_level=log_level,
+        pcap_agent_log_file=os.environ.get("PCAP_AGENT_LOG_FILE", ""),
     )
 
 
