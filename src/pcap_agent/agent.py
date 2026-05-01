@@ -26,11 +26,20 @@ call ingest_pcap before answering.
 - Do not explain what the tools do unless asked.
 """
 
+_PCAP_LOADED_SUFFIX = "\nA PCAP file has already been ingested: `{pcap_file}`. \
+The data is ready for analysis."
 
-def create_agent(*, api_key: str, model: str) -> "ChatAnthropic":
+
+def create_agent(
+    *, api_key: str, model: str, pcap_file: str | None = None
+) -> "ChatAnthropic":
     """Return a ChatAnthropic session with all 7 analysis tools registered."""
+    system_prompt = _SYSTEM_PROMPT
+    if pcap_file:
+        system_prompt += _PCAP_LOADED_SUFFIX.format(pcap_file=pcap_file)
+
     chat = ChatAnthropic(
-        system_prompt=_SYSTEM_PROMPT,
+        system_prompt=system_prompt,
         model=model,
         api_key=api_key,
     )
