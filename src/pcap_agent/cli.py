@@ -2,8 +2,31 @@
 
 import os
 import sys
+from pathlib import Path
+from typing import Any
 
 import click
+
+
+def _print_synopsis(pcap_file: str, result: dict[str, Any]) -> None:
+    label = "(from cache)" if result.get("cached") else "(new)"
+    click.echo(
+        f"\nLoaded {Path(pcap_file).name} {label} — {result['n_packets']} packets"
+    )
+
+    protocols = result.get("protocol_counts", [])
+    if protocols:
+        parts = ", ".join(
+            f"{p['protocol']} {p['pct']}%" for p in protocols
+        )
+        click.echo(f"  Protocols: {parts}")
+
+    talkers = result.get("top_talkers", [])
+    if talkers:
+        top = talkers[0]
+        click.echo(
+            f"  Top talker: {top['src_ip']} ({top['packet_count']} packets)"
+        )
 
 
 @click.command()
@@ -100,6 +123,8 @@ def main(
             result = ingest_pcap(pcap_file, db_dir=db_dir_expanded)
         if not result.get("n_packets"):
             click.echo("Warning: no packets were ingested from the file.", err=True)
+        else:
+            _print_synopsis(pcap_file, result)
 
     from pcap_agent.agent import create_agent
 
