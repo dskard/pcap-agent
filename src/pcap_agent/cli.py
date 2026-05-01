@@ -103,7 +103,7 @@ def main(
 
     from pcap_agent.agent import create_agent
 
-    chat = create_agent(api_key=api_key, model=model)
+    chat = create_agent(api_key=api_key, model=model, pcap_file=pcap_file)
 
     if ui == "app":
         chat.app()
