@@ -2,11 +2,15 @@
 
 from __future__ import annotations
 
+import logging
+
 import numpy as np
 from sklearn.ensemble import IsolationForest
 
 from pcap_agent import telemetry
 from pcap_agent.tools import _state
+
+logger = logging.getLogger(__name__)
 
 _PORT_SCAN_SQL = """
 WITH port_contacts AS (
@@ -71,6 +75,7 @@ def detect_port_scans(threshold: int = 10) -> list[dict] | dict:
             "hint": "Use threshold >= 1",
         }
 
+    logger.debug("detect_port_scans: threshold=%d", threshold)
     conn = _state.require_connection()
     rows = conn.execute(_PORT_SCAN_SQL).fetchall()
 
@@ -90,6 +95,8 @@ def detect_port_scans(threshold: int = 10) -> list[dict] | dict:
                 "classification": classification,
             }
         )
+    suspicious_count = sum(1 for r in result if r["classification"] == "Suspicious")
+    logger.info("detect_port_scans: found %d suspicious IP(s)", suspicious_count)
     return result
 
 
@@ -105,6 +112,7 @@ def detect_anomalies(contamination: float = 0.02) -> list[dict] | dict:
             "hint": "Try contamination=0.02",
         }
 
+    logger.debug("detect_anomalies: contamination=%s", contamination)
     conn = _state.require_connection()
     rows = conn.execute(_ANOMALY_SQL).fetchall()
 
@@ -132,5 +140,6 @@ def detect_anomalies(contamination: float = 0.02) -> list[dict] | dict:
         for rec, label, score in zip(records, labels, scores)
         if label == -1
     ]
+    logger.info("detect_anomalies: flagged %d anomalous packet(s)", len(anomalies))
     telemetry.record_anomalies_detected(len(anomalies))
     return anomalies

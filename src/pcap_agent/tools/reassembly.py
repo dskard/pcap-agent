@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
+import logging
+
 from pcap_agent.tools import _state
+
+logger = logging.getLogger(__name__)
 
 _MAX_BYTES = 64 * 1024  # 64 KB
 
@@ -27,6 +31,10 @@ def reassemble_stream(
             "hint": "Use 'TCP' or 'UDP'.",
         }
 
+    logger.debug(
+        "reassemble_stream: src_ip=%s dst_ip=%s src_port=%d dst_port=%d protocol=%s",
+        src_ip, dst_ip, src_port, dst_port, proto,
+    )
     conn = _state.require_connection()
     proto_num = 6 if proto == "TCP" else 17
 
@@ -81,6 +89,9 @@ def reassemble_stream(
             chunks.append(chunk[:remaining])
             total += remaining
             truncated = True
+            logger.warning(
+                "reassemble_stream: 64 KB cap reached, stream truncated"
+            )
             break
         chunks.append(chunk)
         total += len(chunk)
@@ -93,6 +104,9 @@ def reassemble_stream(
         text = raw.hex()
         encoding = "hex"
 
+    logger.info(
+        "reassemble_stream: reassembled %d byte(s), encoding=%s", total, encoding
+    )
     return {
         "src_ip": src_ip,
         "dst_ip": dst_ip,
