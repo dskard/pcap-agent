@@ -24,7 +24,14 @@ from constants import (
     UDP_TOP_TALKER_IP,
     UDP_TOTAL,
 )
-from scapy.all import TCP, UDP, IPv6, Raw, wrpcap  # type: ignore[import-untyped]
+from scapy.all import (  # type: ignore[import-untyped]
+    TCP,
+    UDP,
+    ICMPv6EchoRequest,
+    IPv6,
+    Raw,
+    wrpcap,
+)
 
 
 class TestParsedPcapTypes:
@@ -198,6 +205,8 @@ _IPV6_TCP_SPORT = 44444
 _IPV6_TCP_DPORT = 80
 _IPV6_UDP_SPORT = 55555
 _IPV6_UDP_DPORT = 53
+_IPV6_ICMPV6_TYPE = 128  # ICMPv6EchoRequest
+_IPV6_ICMPV6_CODE = 0
 
 
 class TestIPv6Parsing:
@@ -211,6 +220,7 @@ class TestIPv6Parsing:
             IPv6(src=_IPV6_SRC, dst=_IPV6_DST)
             / UDP(sport=_IPV6_UDP_SPORT, dport=_IPV6_UDP_DPORT)
             / Raw(load=b"hello"),
+            IPv6(src=_IPV6_SRC, dst=_IPV6_DST) / ICMPv6EchoRequest(),
         ]
         wrpcap(str(pcap_path), pkts)
         return pcap_path
@@ -222,7 +232,7 @@ class TestIPv6Parsing:
         return parser.parse(ipv6_pcap)
 
     def test_packet_count(self, parsed_ipv6):
-        assert len(parsed_ipv6.packets) == 2
+        assert len(parsed_ipv6.packets) == 3
 
     def test_src_ip(self, parsed_ipv6):
         assert parsed_ipv6.packets["src_ip"].unique().to_list() == [_IPV6_SRC]
@@ -239,3 +249,8 @@ class TestIPv6Parsing:
         assert len(parsed_ipv6.udp_datagrams) == 1
         assert parsed_ipv6.udp_datagrams["sport"].to_list() == [_IPV6_UDP_SPORT]
         assert parsed_ipv6.udp_datagrams["dport"].to_list() == [_IPV6_UDP_DPORT]
+
+    def test_icmpv6_message_parsed(self, parsed_ipv6):
+        assert len(parsed_ipv6.icmp_messages) == 1
+        assert parsed_ipv6.icmp_messages["type"].to_list() == [_IPV6_ICMPV6_TYPE]
+        assert parsed_ipv6.icmp_messages["code"].to_list() == [_IPV6_ICMPV6_CODE]

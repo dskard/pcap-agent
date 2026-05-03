@@ -78,10 +78,19 @@ def parse(pcap_path: Path | str) -> ParsedPcap:
             dst_ip = str(ip_layer.dst)
         elif pkt.haslayer(IPv6):
             ip_layer = pkt[IPv6]
-            proto = int(ip_layer.nh)
             ttl = int(ip_layer.hlim)
             src_ip = str(ip_layer.src)
             dst_ip = str(ip_layer.dst)
+            # Use haslayer() to find the transport protocol past any extension
+            # headers; nh only reflects the first next-header value, which may
+            # be an extension-header type (e.g. 43=routing, 44=fragment) rather
+            # than the actual transport protocol.
+            if pkt.haslayer(TCP):
+                proto = _PROTO_TCP
+            elif pkt.haslayer(UDP):
+                proto = _PROTO_UDP
+            else:
+                proto = int(ip_layer.nh)
         else:
             continue
 
