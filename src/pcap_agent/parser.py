@@ -5,13 +5,14 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import polars as pl
-from scapy.all import ICMP, IP, TCP, UDP, rdpcap  # type: ignore[import-untyped]
+from scapy.all import ICMP, IP, TCP, UDP, IPv6, rdpcap  # type: ignore[import-untyped]
 
 logger = logging.getLogger(__name__)
 
 _PROTO_TCP = 6
 _PROTO_UDP = 17
 _PROTO_ICMP = 1
+_PROTO_ICMPV6 = 58
 
 _PACKETS_SCHEMA = {
     "packet_id": pl.Int64,
@@ -69,27 +70,46 @@ def parse(pcap_path: Path | str) -> ParsedPcap:
     packet_id = 0
 
     for pkt in raw_packets:
-        if not pkt.haslayer(IP):
+        if pkt.haslayer(IP):
+            ip_layer = pkt[IP]
+            proto = int(ip_layer.proto)
+            ttl = int(ip_layer.ttl)
+            src_ip = str(ip_layer.src)
+            dst_ip = str(ip_layer.dst)
+        elif pkt.haslayer(IPv6):
+            ip_layer = pkt[IPv6]
+            ttl = int(ip_layer.hlim)
+            src_ip = str(ip_layer.src)
+            dst_ip = str(ip_layer.dst)
+            # Use haslayer() to find the transport protocol past any extension
+            # headers; nh only reflects the first next-header value, which may
+            # be an extension-header type (e.g. 43=routing, 44=fragment) rather
+            # than the actual transport protocol.
+            if pkt.haslayer(TCP):
+                proto = _PROTO_TCP
+            elif pkt.haslayer(UDP):
+                proto = _PROTO_UDP
+            else:
+                proto = int(ip_layer.nh)
+        else:
             continue
 
-        ip = pkt[IP]
         packets_rows.append(
             {
                 "packet_id": packet_id,
                 "timestamp": float(pkt.time),
-                "src_ip": str(ip.src),
-                "dst_ip": str(ip.dst),
-                "protocol": int(ip.proto),
+                "src_ip": src_ip,
+                "dst_ip": dst_ip,
+                "protocol": proto,
                 "length": len(pkt),
-                "ttl": int(ip.ttl),
+                "ttl": ttl,
             }
         )
 
-        # ip.proto classifies by outer protocol so ICMP error packets that
+        # proto classifies by outer protocol so ICMP error packets that
         # encapsulate an inner IP/TCP or IP/UDP header are not misrouted.
         # haslayer() remains as a guard: malformed/truncated captures can have
-        # ip.proto == 6 but no TCP layer, causing pkt[TCP] to raise an error.
-        proto = int(ip.proto)
+        # proto == 6 but no TCP layer, causing pkt[TCP] to raise an error.
         if proto == _PROTO_TCP and pkt.haslayer(TCP):
             tcp = pkt[TCP]
             tcp_rows.append(
@@ -123,10 +143,21 @@ def parse(pcap_path: Path | str) -> ParsedPcap:
                     "payload": bytes(icmp.payload) if icmp.payload else b"",
                 }
             )
+        elif proto == _PROTO_ICMPV6:
+            icmpv6 = ip_layer.payload
+            if icmpv6 and hasattr(icmpv6, "type"):
+                icmp_rows.append(
+                    {
+                        "packet_id": packet_id,
+                        "type": int(icmpv6.type),
+                        "code": int(icmpv6.code) if hasattr(icmpv6, "code") else 0,
+                        "payload": bytes(icmpv6.payload) if icmpv6.payload else b"",
+                    }
+                )
 
         packet_id += 1
 
-    logger.info("Parsed %d IP packets from %s", len(packets_rows), pcap_path)
+    logger.info("Parsed %d IP/IPv6 packets from %s", len(packets_rows), pcap_path)
     logger.debug(
         "Protocol breakdown — TCP: %d, UDP: %d, ICMP: %d",
         len(tcp_rows),
