@@ -24,6 +24,7 @@ from constants import (
     UDP_TOP_TALKER_IP,
     UDP_TOTAL,
 )
+from scapy.all import TCP, UDP, IPv6, Raw, wrpcap  # type: ignore[import-untyped]
 
 
 class TestParsedPcapTypes:
@@ -189,3 +190,52 @@ class TestIcmpSpotCheck:
             .to_list()
         )
         assert dst_ips == [ICMP_DST_IP]
+
+
+_IPV6_SRC = "2001:db8::1"
+_IPV6_DST = "2001:db8::2"
+_IPV6_TCP_SPORT = 44444
+_IPV6_TCP_DPORT = 80
+_IPV6_UDP_SPORT = 55555
+_IPV6_UDP_DPORT = 53
+
+
+class TestIPv6Parsing:
+    @pytest.fixture(scope="class")
+    def ipv6_pcap(self, tmp_path_factory):
+        tmp_path = tmp_path_factory.mktemp("ipv6_pcap")
+        pcap_path = tmp_path / "ipv6.pcap"
+        pkts = [
+            IPv6(src=_IPV6_SRC, dst=_IPV6_DST)
+            / TCP(sport=_IPV6_TCP_SPORT, dport=_IPV6_TCP_DPORT, flags="S"),
+            IPv6(src=_IPV6_SRC, dst=_IPV6_DST)
+            / UDP(sport=_IPV6_UDP_SPORT, dport=_IPV6_UDP_DPORT)
+            / Raw(load=b"hello"),
+        ]
+        wrpcap(str(pcap_path), pkts)
+        return pcap_path
+
+    @pytest.fixture(scope="class")
+    def parsed_ipv6(self, ipv6_pcap):
+        from pcap_agent import parser
+
+        return parser.parse(ipv6_pcap)
+
+    def test_packet_count(self, parsed_ipv6):
+        assert len(parsed_ipv6.packets) == 2
+
+    def test_src_ip(self, parsed_ipv6):
+        assert parsed_ipv6.packets["src_ip"].unique().to_list() == [_IPV6_SRC]
+
+    def test_dst_ip(self, parsed_ipv6):
+        assert parsed_ipv6.packets["dst_ip"].unique().to_list() == [_IPV6_DST]
+
+    def test_tcp_segment_parsed(self, parsed_ipv6):
+        assert len(parsed_ipv6.tcp_segments) == 1
+        assert parsed_ipv6.tcp_segments["sport"].to_list() == [_IPV6_TCP_SPORT]
+        assert parsed_ipv6.tcp_segments["dport"].to_list() == [_IPV6_TCP_DPORT]
+
+    def test_udp_datagram_parsed(self, parsed_ipv6):
+        assert len(parsed_ipv6.udp_datagrams) == 1
+        assert parsed_ipv6.udp_datagrams["sport"].to_list() == [_IPV6_UDP_SPORT]
+        assert parsed_ipv6.udp_datagrams["dport"].to_list() == [_IPV6_UDP_DPORT]
