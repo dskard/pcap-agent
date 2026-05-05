@@ -50,6 +50,7 @@ def ingest_pcap(path: str | Path, db_dir: str | None = None) -> dict[str, Any]:
         if old_conn is not None:
             old_conn.close()
 
+    clear_stale = False
     if db.get_cached(conn, sha256) is not None:
         if schema_was_stale:
             logger.warning(
@@ -57,7 +58,7 @@ def ingest_pcap(path: str | Path, db_dir: str | None = None) -> dict[str, Any]:
                 sha256,
                 pcap_path,
             )
-            db.clear_data(conn, sha256)
+            clear_stale = True
         else:
             logger.warning(
                 "File already cached (sha256=%s path=%s), skipping ingest",
@@ -69,6 +70,8 @@ def ingest_pcap(path: str | Path, db_dir: str | None = None) -> dict[str, Any]:
     frames = parser.parse(pcap_path)
     conn.begin()
     try:
+        if clear_stale:
+            db.clear_data(conn, sha256)
         db.ingest(conn, frames, begin_transaction=False)
         db.set_cached(conn, sha256, str(pcap_path))
         db.set_capture_info(

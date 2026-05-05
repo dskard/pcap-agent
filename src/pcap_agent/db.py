@@ -201,8 +201,8 @@ def clear_data(conn: duckdb.DuckDBPyConnection, sha256: str) -> None:
             continue
         try:
             conn.execute(f'DELETE FROM "{table}"')
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning("Failed to clear table %s: %s", table, e)
 
 
 def get_cached(
