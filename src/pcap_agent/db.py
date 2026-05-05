@@ -71,6 +71,15 @@ CREATE TABLE IF NOT EXISTS pcap_meta (
     pcap_path VARCHAR,
     ingested_at TIMESTAMP DEFAULT current_timestamp
 );
+
+CREATE TABLE IF NOT EXISTS capture_info (
+    sha256          VARCHAR PRIMARY KEY,
+    link_type       INTEGER,
+    has_radiotap    BOOLEAN,
+    signal_dbm      DOUBLE,
+    channel         INTEGER,
+    data_rate_mbps  DOUBLE
+);
 """
 
 
@@ -120,6 +129,30 @@ def _load_df(
     placeholders = ", ".join(["?" for _ in df.columns])
     conn.executemany(
         f'INSERT INTO "{table}" ({cols}) VALUES ({placeholders})', df.rows()
+    )
+
+
+def set_capture_info(
+    conn: duckdb.DuckDBPyConnection,
+    sha256: str,
+    link_type: int,
+    has_radiotap: bool,
+    signal_dbm: float | None,
+    channel: int | None,
+    data_rate_mbps: float | None,
+) -> None:
+    """Insert or replace the capture_info row for sha256."""
+    conn.execute(
+        "INSERT INTO capture_info"
+        " (sha256, link_type, has_radiotap, signal_dbm, channel, data_rate_mbps)"
+        " VALUES (?, ?, ?, ?, ?, ?)"
+        " ON CONFLICT (sha256) DO UPDATE SET"
+        "   link_type = EXCLUDED.link_type,"
+        "   has_radiotap = EXCLUDED.has_radiotap,"
+        "   signal_dbm = EXCLUDED.signal_dbm,"
+        "   channel = EXCLUDED.channel,"
+        "   data_rate_mbps = EXCLUDED.data_rate_mbps",
+        [sha256, link_type, has_radiotap, signal_dbm, channel, data_rate_mbps],
     )
 
 

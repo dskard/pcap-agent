@@ -73,6 +73,15 @@ class TestIngestPcap:
     def test_first_ingest_not_cached(self, ingested_db):
         assert ingested_db["cached"] is False
 
+    def test_capture_info_populated(self, ingested_conn, ingested_db):
+        row = ingested_conn.execute(
+            "SELECT link_type, has_radiotap FROM capture_info WHERE sha256 = ?",
+            [ingested_db["sha256"]],
+        ).fetchone()
+        assert row is not None
+        assert isinstance(row[0], int)
+        assert row[1] is False
+
 
 class TestIngestCaching:
     def test_second_ingest_returns_cached(
