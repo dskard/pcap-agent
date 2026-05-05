@@ -25,8 +25,12 @@ from constants import (
     UDP_TOTAL,
 )
 from scapy.all import (  # type: ignore[import-untyped]
+    ARP,
+    IP,
     TCP,
     UDP,
+    Dot1Q,
+    Ether,
     ICMPv6EchoRequest,
     IPv6,
     Raw,
@@ -35,11 +39,13 @@ from scapy.all import (  # type: ignore[import-untyped]
 
 
 class TestParsedPcapTypes:
-    def test_returns_four_dataframes(self, parsed_pcap):
+    def test_returns_six_dataframes(self, parsed_pcap):
         assert isinstance(parsed_pcap.packets, pl.DataFrame)
         assert isinstance(parsed_pcap.tcp_segments, pl.DataFrame)
         assert isinstance(parsed_pcap.udp_datagrams, pl.DataFrame)
         assert isinstance(parsed_pcap.icmp_messages, pl.DataFrame)
+        assert isinstance(parsed_pcap.ethernet_frames, pl.DataFrame)
+        assert isinstance(parsed_pcap.arp_packets, pl.DataFrame)
 
     def test_packets_schema(self, parsed_pcap):
         expected = {
@@ -83,6 +89,29 @@ class TestParsedPcapTypes:
         }
         assert parsed_pcap.icmp_messages.schema == pl.Schema(expected)
 
+    def test_ethernet_frames_schema(self, parsed_pcap):
+        expected = {
+            "frame_id": pl.Int64,
+            "src_mac": pl.String,
+            "dst_mac": pl.String,
+            "ethertype": pl.Int32,
+            "vlan_id": pl.Int32,
+        }
+        assert parsed_pcap.ethernet_frames.schema == pl.Schema(expected)
+
+    def test_arp_packets_schema(self, parsed_pcap):
+        expected = {
+            "frame_id": pl.Int64,
+            "hw_type": pl.Int32,
+            "proto_type": pl.Int32,
+            "operation": pl.Int32,
+            "sender_mac": pl.String,
+            "sender_ip": pl.String,
+            "target_mac": pl.String,
+            "target_ip": pl.String,
+        }
+        assert parsed_pcap.arp_packets.schema == pl.Schema(expected)
+
 
 class TestRowCounts:
     def test_packets_total(self, parsed_pcap):
@@ -96,6 +125,14 @@ class TestRowCounts:
 
     def test_icmp_messages_total(self, parsed_pcap):
         assert len(parsed_pcap.icmp_messages) == ICMP_PACKET_COUNT
+
+    def test_no_ethernet_frames_for_raw_ip_capture(self, parsed_pcap):
+        # The synthetic fixture uses raw IP packets (no Ether layer), so
+        # ethernet_frames must be empty — this validates the non-Ethernet path.
+        assert len(parsed_pcap.ethernet_frames) == 0
+
+    def test_no_arp_packets_for_raw_ip_capture(self, parsed_pcap):
+        assert len(parsed_pcap.arp_packets) == 0
 
 
 class TestTcpStreamSpotCheck:
@@ -254,3 +291,139 @@ class TestIPv6Parsing:
         assert len(parsed_ipv6.icmp_messages) == 1
         assert parsed_ipv6.icmp_messages["type"].to_list() == [_IPV6_ICMPV6_TYPE]
         assert parsed_ipv6.icmp_messages["code"].to_list() == [_IPV6_ICMPV6_CODE]
+
+
+_ETH_SRC_MAC = "aa:bb:cc:dd:ee:01"
+_ETH_DST_MAC = "11:22:33:44:55:01"
+_ARP_REQ_SRC_MAC = "aa:bb:cc:dd:ee:02"
+_ARP_REQ_DST_MAC = "ff:ff:ff:ff:ff:ff"
+_ARP_REP_SRC_MAC = "aa:bb:cc:dd:ee:03"
+_ARP_REP_DST_MAC = "aa:bb:cc:dd:ee:02"
+_ARP_SRC_IP = "192.168.10.1"
+_ARP_DST_IP = "192.168.10.2"
+_VLAN_ID = 100
+_ETH_IP_SRC = "10.20.0.1"
+_ETH_IP_DST = "10.20.0.2"
+_VLAN_IP_SRC = "10.30.0.1"
+_VLAN_IP_DST = "10.30.0.2"
+_ETH_IP_ETHERTYPE = 0x0800  # IPv4
+
+
+class TestEthernetParsing:
+    """Ethernet, ARP, and VLAN parsing with dedicated Ether-framed fixture."""
+
+    @pytest.fixture(scope="class")
+    def eth_pcap(self, tmp_path_factory):
+        tmp_path = tmp_path_factory.mktemp("eth_pcap")
+        pcap_path = tmp_path / "ethernet.pcap"
+        pkts = [
+            # Regular Ethernet/IP/UDP frame
+            Ether(src=_ETH_SRC_MAC, dst=_ETH_DST_MAC)
+            / IP(src=_ETH_IP_SRC, dst=_ETH_IP_DST)
+            / UDP(sport=1234, dport=5678)
+            / Raw(load=b"hello"),
+            # ARP request
+            Ether(src=_ARP_REQ_SRC_MAC, dst=_ARP_REQ_DST_MAC)
+            / ARP(
+                op=1,
+                hwsrc=_ARP_REQ_SRC_MAC,
+                psrc=_ARP_SRC_IP,
+                hwdst=_ARP_REQ_DST_MAC,
+                pdst=_ARP_DST_IP,
+            ),
+            # ARP reply
+            Ether(src=_ARP_REP_SRC_MAC, dst=_ARP_REP_DST_MAC)
+            / ARP(
+                op=2,
+                hwsrc=_ARP_REP_SRC_MAC,
+                psrc=_ARP_DST_IP,
+                hwdst=_ARP_REP_DST_MAC,
+                pdst=_ARP_SRC_IP,
+            ),
+            # VLAN-tagged frame (802.1Q)
+            Ether(src=_ETH_SRC_MAC, dst=_ETH_DST_MAC)
+            / Dot1Q(vlan=_VLAN_ID)
+            / IP(src=_VLAN_IP_SRC, dst=_VLAN_IP_DST)
+            / TCP(sport=9000, dport=80, flags="S"),
+        ]
+        wrpcap(str(pcap_path), pkts)
+        return pcap_path
+
+    @pytest.fixture(scope="class")
+    def parsed_eth(self, eth_pcap):
+        from pcap_agent import parser
+
+        return parser.parse(eth_pcap)
+
+    def test_ethernet_frames_row_count(self, parsed_eth):
+        # 4 packets, all with Ether layer
+        assert len(parsed_eth.ethernet_frames) == 4
+
+    def test_ethernet_frame_src_mac(self, parsed_eth):
+        eth_ip_frame = parsed_eth.ethernet_frames.filter(
+            pl.col("frame_id") == 0
+        )
+        assert eth_ip_frame["src_mac"].to_list() == [_ETH_SRC_MAC]
+
+    def test_ethernet_frame_dst_mac(self, parsed_eth):
+        eth_ip_frame = parsed_eth.ethernet_frames.filter(
+            pl.col("frame_id") == 0
+        )
+        assert eth_ip_frame["dst_mac"].to_list() == [_ETH_DST_MAC]
+
+    def test_untagged_frame_vlan_id_is_null(self, parsed_eth):
+        eth_ip_frame = parsed_eth.ethernet_frames.filter(
+            pl.col("frame_id") == 0
+        )
+        assert eth_ip_frame["vlan_id"].to_list() == [None]
+
+    def test_untagged_frame_ethertype(self, parsed_eth):
+        eth_ip_frame = parsed_eth.ethernet_frames.filter(
+            pl.col("frame_id") == 0
+        )
+        assert eth_ip_frame["ethertype"].to_list() == [_ETH_IP_ETHERTYPE]
+
+    def test_arp_row_count(self, parsed_eth):
+        assert len(parsed_eth.arp_packets) == 2
+
+    def test_arp_request_operation(self, parsed_eth):
+        arp_request = parsed_eth.arp_packets.filter(pl.col("frame_id") == 1)
+        assert arp_request["operation"].to_list() == [1]
+
+    def test_arp_reply_operation(self, parsed_eth):
+        arp_reply = parsed_eth.arp_packets.filter(pl.col("frame_id") == 2)
+        assert arp_reply["operation"].to_list() == [2]
+
+    def test_arp_sender_ip(self, parsed_eth):
+        arp_request = parsed_eth.arp_packets.filter(pl.col("frame_id") == 1)
+        assert arp_request["sender_ip"].to_list() == [_ARP_SRC_IP]
+
+    def test_arp_target_ip(self, parsed_eth):
+        arp_request = parsed_eth.arp_packets.filter(pl.col("frame_id") == 1)
+        assert arp_request["target_ip"].to_list() == [_ARP_DST_IP]
+
+    def test_vlan_id_set(self, parsed_eth):
+        vlan_frame = parsed_eth.ethernet_frames.filter(pl.col("frame_id") == 3)
+        assert vlan_frame["vlan_id"].to_list() == [_VLAN_ID]
+
+    def test_vlan_ethertype_is_inner_not_8100(self, parsed_eth):
+        # 0x8100 is the outer 802.1Q tag; ethertype must reflect the inner type
+        vlan_frame = parsed_eth.ethernet_frames.filter(pl.col("frame_id") == 3)
+        assert vlan_frame["ethertype"].to_list() == [_ETH_IP_ETHERTYPE]
+        assert vlan_frame["ethertype"].to_list()[0] != 0x8100
+
+    def test_arp_frames_have_no_ip_packet_row(self, parsed_eth):
+        # ARP frames (frame_id 1 and 2) must not appear in packets table
+        arp_frame_ids = {1, 2}
+        ip_frame_ids = set(parsed_eth.packets["frame_id"].to_list())
+        assert arp_frame_ids.isdisjoint(ip_frame_ids)
+
+    def test_ip_frames_have_ethernet_row(self, parsed_eth):
+        # frame_id 0 (Ether/IP/UDP) and 3 (Ether/VLAN/IP/TCP) are in packets
+        ip_frame_ids = set(parsed_eth.packets["frame_id"].to_list())
+        eth_frame_ids = set(parsed_eth.ethernet_frames["frame_id"].to_list())
+        assert ip_frame_ids.issubset(eth_frame_ids)
+
+    def test_l3_analysis_works_for_ethernet_capture(self, parsed_eth):
+        # IP-bearing Ethernet frames still produce packets rows
+        assert len(parsed_eth.packets) == 2  # Ether/IP/UDP + VLAN/IP/TCP

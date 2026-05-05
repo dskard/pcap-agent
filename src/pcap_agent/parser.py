@@ -5,7 +5,17 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import polars as pl
-from scapy.all import ICMP, IP, TCP, UDP, IPv6, rdpcap  # type: ignore[import-untyped]
+from scapy.all import (  # type: ignore[import-untyped]
+    ARP,
+    ICMP,
+    IP,
+    TCP,
+    UDP,
+    Dot1Q,
+    Ether,
+    IPv6,
+    rdpcap,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -48,6 +58,25 @@ _ICMP_SCHEMA = {
     "payload": pl.Binary,
 }
 
+_ETHERNET_FRAMES_SCHEMA = {
+    "frame_id": pl.Int64,
+    "src_mac": pl.String,
+    "dst_mac": pl.String,
+    "ethertype": pl.Int32,
+    "vlan_id": pl.Int32,
+}
+
+_ARP_PACKETS_SCHEMA = {
+    "frame_id": pl.Int64,
+    "hw_type": pl.Int32,
+    "proto_type": pl.Int32,
+    "operation": pl.Int32,
+    "sender_mac": pl.String,
+    "sender_ip": pl.String,
+    "target_mac": pl.String,
+    "target_ip": pl.String,
+}
+
 
 @dataclass(frozen=True)
 class ParsedPcap:
@@ -55,6 +84,8 @@ class ParsedPcap:
     tcp_segments: pl.DataFrame
     udp_datagrams: pl.DataFrame
     icmp_messages: pl.DataFrame
+    ethernet_frames: pl.DataFrame
+    arp_packets: pl.DataFrame
 
 
 def parse(pcap_path: Path | str) -> ParsedPcap:
@@ -66,10 +97,43 @@ def parse(pcap_path: Path | str) -> ParsedPcap:
     tcp_rows: list[dict] = []
     udp_rows: list[dict] = []
     icmp_rows: list[dict] = []
-    # frame_id is a sequential index over IP-only frames, not the PCAP frame number.
-    frame_id = 0
+    ethernet_rows: list[dict] = []
+    arp_rows: list[dict] = []
 
-    for pkt in raw_packets:
+    for frame_id, pkt in enumerate(raw_packets):
+        if pkt.haslayer(Ether):
+            ether = pkt[Ether]
+            if pkt.haslayer(Dot1Q):
+                dot1q = pkt[Dot1Q]
+                vlan_id: int | None = int(dot1q.vlan)
+                ethertype = int(dot1q.type)
+            else:
+                vlan_id = None
+                ethertype = int(ether.type)
+            ethernet_rows.append(
+                {
+                    "frame_id": frame_id,
+                    "src_mac": str(ether.src),
+                    "dst_mac": str(ether.dst),
+                    "ethertype": ethertype,
+                    "vlan_id": vlan_id,
+                }
+            )
+            if pkt.haslayer(ARP):
+                arp = pkt[ARP]
+                arp_rows.append(
+                    {
+                        "frame_id": frame_id,
+                        "hw_type": int(arp.hwtype),
+                        "proto_type": int(arp.ptype),
+                        "operation": int(arp.op),
+                        "sender_mac": str(arp.hwsrc),
+                        "sender_ip": str(arp.psrc),
+                        "target_mac": str(arp.hwdst),
+                        "target_ip": str(arp.pdst),
+                    }
+                )
+
         if pkt.haslayer(IP):
             ip_layer = pkt[IP]
             proto = int(ip_layer.proto)
@@ -155,14 +219,14 @@ def parse(pcap_path: Path | str) -> ParsedPcap:
                     }
                 )
 
-        frame_id += 1
-
     logger.info("Parsed %d IP/IPv6 packets from %s", len(packets_rows), pcap_path)
     logger.debug(
-        "Protocol breakdown — TCP: %d, UDP: %d, ICMP: %d",
+        "Protocol breakdown — TCP: %d, UDP: %d, ICMP: %d, Ethernet: %d, ARP: %d",
         len(tcp_rows),
         len(udp_rows),
         len(icmp_rows),
+        len(ethernet_rows),
+        len(arp_rows),
     )
 
     return ParsedPcap(
@@ -178,4 +242,10 @@ def parse(pcap_path: Path | str) -> ParsedPcap:
         icmp_messages=pl.DataFrame(icmp_rows, schema=_ICMP_SCHEMA)
         if icmp_rows
         else pl.DataFrame(schema=_ICMP_SCHEMA),
+        ethernet_frames=pl.DataFrame(ethernet_rows, schema=_ETHERNET_FRAMES_SCHEMA)
+        if ethernet_rows
+        else pl.DataFrame(schema=_ETHERNET_FRAMES_SCHEMA),
+        arp_packets=pl.DataFrame(arp_rows, schema=_ARP_PACKETS_SCHEMA)
+        if arp_rows
+        else pl.DataFrame(schema=_ARP_PACKETS_SCHEMA),
     )
