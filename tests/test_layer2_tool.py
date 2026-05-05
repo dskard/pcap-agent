@@ -89,9 +89,6 @@ def eth_conn(eth_pcap):
         sha256="test-sha256",
         link_type=parsed.link_type,
         has_radiotap=parsed.has_radiotap,
-        signal_dbm=parsed.signal_dbm,
-        channel=parsed.channel,
-        data_rate_mbps=parsed.data_rate_mbps,
     )
     old = _state.get_connection()
     old_path = _state.get_db_path()

@@ -20,6 +20,7 @@ _EXPECTED_TABLES = {
     "arp_packets",
     "pcap_meta",
     "capture_info",
+    "radiotap_frames",
 }
 
 
@@ -139,61 +140,37 @@ class TestSetCaptureInfo:
     _SHA256 = "d" * 64
 
     def test_inserts_row(self, duckdb_conn):
-        db.set_capture_info(duckdb_conn, self._SHA256, 1, False, None, None, None)
+        db.set_capture_info(duckdb_conn, self._SHA256, 1, False)
         row = duckdb_conn.execute(
-            "SELECT link_type, has_radiotap, signal_dbm, channel, data_rate_mbps"
-            " FROM capture_info WHERE sha256 = ?",
+            "SELECT link_type, has_radiotap FROM capture_info WHERE sha256 = ?",
             [self._SHA256],
         ).fetchone()
         assert row is not None
         assert row[0] == 1
         assert row[1] is False
-        assert row[2] is None
-        assert row[3] is None
-        assert row[4] is None
-
-    def test_non_radiotap_wifi_columns_null(self, duckdb_conn):
-        db.set_capture_info(duckdb_conn, self._SHA256, 228, False, None, None, None)
-        row = duckdb_conn.execute(
-            "SELECT has_radiotap, signal_dbm, channel, data_rate_mbps"
-            " FROM capture_info WHERE sha256 = ?",
-            [self._SHA256],
-        ).fetchone()
-        assert row[0] is False
-        assert row[1] is None
-        assert row[2] is None
-        assert row[3] is None
 
     def test_radiotap_row(self, duckdb_conn):
-        db.set_capture_info(duckdb_conn, self._SHA256, 127, True, -65.0, 6, 54.0)
+        db.set_capture_info(duckdb_conn, self._SHA256, 127, True)
         row = duckdb_conn.execute(
-            "SELECT link_type, has_radiotap, signal_dbm, channel, data_rate_mbps"
-            " FROM capture_info WHERE sha256 = ?",
+            "SELECT link_type, has_radiotap FROM capture_info WHERE sha256 = ?",
             [self._SHA256],
         ).fetchone()
         assert row[0] == 127
         assert row[1] is True
-        assert row[2] == -65.0
-        assert row[3] == 6
-        assert row[4] == 54.0
 
     def test_upsert_updates_existing_row(self, duckdb_conn):
-        db.set_capture_info(duckdb_conn, self._SHA256, 1, False, None, None, None)
-        db.set_capture_info(duckdb_conn, self._SHA256, 127, True, -70.0, 11, 24.0)
+        db.set_capture_info(duckdb_conn, self._SHA256, 1, False)
+        db.set_capture_info(duckdb_conn, self._SHA256, 127, True)
         row = duckdb_conn.execute(
-            "SELECT link_type, has_radiotap, signal_dbm, channel, data_rate_mbps"
-            " FROM capture_info WHERE sha256 = ?",
+            "SELECT link_type, has_radiotap FROM capture_info WHERE sha256 = ?",
             [self._SHA256],
         ).fetchone()
         assert row[0] == 127
         assert row[1] is True
-        assert row[2] == -70.0
-        assert row[3] == 11
-        assert row[4] == 24.0
 
     def test_only_one_row_per_sha256(self, duckdb_conn):
-        db.set_capture_info(duckdb_conn, self._SHA256, 1, False, None, None, None)
-        db.set_capture_info(duckdb_conn, self._SHA256, 1, False, None, None, None)
+        db.set_capture_info(duckdb_conn, self._SHA256, 1, False)
+        db.set_capture_info(duckdb_conn, self._SHA256, 1, False)
         count = duckdb_conn.execute(
             "SELECT COUNT(*) FROM capture_info WHERE sha256 = ?", [self._SHA256]
         ).fetchone()[0]
@@ -223,3 +200,21 @@ class TestGetCached:
         self._insert(duckdb_conn)
         result = db.get_cached(duckdb_conn, "b" * 64)
         assert result is None
+
+
+class TestRadiotapFrames:
+    def test_table_empty_for_non_radiotap_capture(self, ingested_conn):
+        count = ingested_conn.execute(
+            "SELECT COUNT(*) FROM radiotap_frames"
+        ).fetchone()[0]
+        assert count == 0
+
+    def test_schema_has_expected_columns(self, duckdb_conn):
+        cols = {
+            row[0]
+            for row in duckdb_conn.execute(
+                "SELECT column_name FROM information_schema.columns"
+                " WHERE table_name = 'radiotap_frames'"
+            ).fetchall()
+        }
+        assert cols == {"frame_id", "signal_dbm", "channel", "data_rate_mbps"}

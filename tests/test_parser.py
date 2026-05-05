@@ -436,10 +436,8 @@ class TestEthernetParsing:
     def test_has_radiotap_false_for_ethernet(self, parsed_eth):
         assert parsed_eth.has_radiotap is False
 
-    def test_wifi_fields_null_for_ethernet(self, parsed_eth):
-        assert parsed_eth.signal_dbm is None
-        assert parsed_eth.channel is None
-        assert parsed_eth.data_rate_mbps is None
+    def test_radiotap_frames_empty_for_ethernet(self, parsed_eth):
+        assert parsed_eth.radiotap_frames.is_empty()
 
 
 _RT_SIGNAL_DBM = -65
@@ -481,14 +479,17 @@ class TestRadiotapParsing:
     def test_has_radiotap_true(self, parsed_rt):
         assert parsed_rt.has_radiotap is True
 
+    def test_radiotap_frames_row_count(self, parsed_rt):
+        assert len(parsed_rt.radiotap_frames) == 1
+
     def test_signal_dbm(self, parsed_rt):
-        assert parsed_rt.signal_dbm == float(_RT_SIGNAL_DBM)
+        assert parsed_rt.radiotap_frames["signal_dbm"][0] == float(_RT_SIGNAL_DBM)
 
     def test_channel(self, parsed_rt):
-        assert parsed_rt.channel == _RT_EXPECTED_CHANNEL
+        assert parsed_rt.radiotap_frames["channel"][0] == _RT_EXPECTED_CHANNEL
 
     def test_data_rate_mbps(self, parsed_rt):
-        assert parsed_rt.data_rate_mbps == _RT_EXPECTED_RATE_MBPS
+        assert parsed_rt.radiotap_frames["data_rate_mbps"][0] == _RT_EXPECTED_RATE_MBPS
 
 
 class TestRawIpLinkType:
@@ -498,7 +499,5 @@ class TestRawIpLinkType:
     def test_has_radiotap_false(self, parsed_pcap):
         assert parsed_pcap.has_radiotap is False
 
-    def test_wifi_fields_null(self, parsed_pcap):
-        assert parsed_pcap.signal_dbm is None
-        assert parsed_pcap.channel is None
-        assert parsed_pcap.data_rate_mbps is None
+    def test_radiotap_frames_empty(self, parsed_pcap):
+        assert parsed_pcap.radiotap_frames.is_empty()

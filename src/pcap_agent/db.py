@@ -75,7 +75,11 @@ CREATE TABLE IF NOT EXISTS pcap_meta (
 CREATE TABLE IF NOT EXISTS capture_info (
     sha256          VARCHAR PRIMARY KEY,
     link_type       INTEGER,
-    has_radiotap    BOOLEAN,
+    has_radiotap    BOOLEAN
+);
+
+CREATE TABLE IF NOT EXISTS radiotap_frames (
+    frame_id        BIGINT PRIMARY KEY,
     signal_dbm      DOUBLE,
     channel         INTEGER,
     data_rate_mbps  DOUBLE
@@ -112,6 +116,7 @@ def ingest(
         _load_df(conn, "icmp_messages", frames.icmp_messages)
         _load_df(conn, "ethernet_frames", frames.ethernet_frames)
         _load_df(conn, "arp_packets", frames.arp_packets)
+        _load_df(conn, "radiotap_frames", frames.radiotap_frames)
         if begin_transaction:
             conn.commit()
     except Exception:
@@ -137,22 +142,16 @@ def set_capture_info(
     sha256: str,
     link_type: int,
     has_radiotap: bool,
-    signal_dbm: float | None,
-    channel: int | None,
-    data_rate_mbps: float | None,
 ) -> None:
     """Insert or replace the capture_info row for sha256."""
     conn.execute(
         "INSERT INTO capture_info"
-        " (sha256, link_type, has_radiotap, signal_dbm, channel, data_rate_mbps)"
-        " VALUES (?, ?, ?, ?, ?, ?)"
+        " (sha256, link_type, has_radiotap)"
+        " VALUES (?, ?, ?)"
         " ON CONFLICT (sha256) DO UPDATE SET"
         "   link_type = EXCLUDED.link_type,"
-        "   has_radiotap = EXCLUDED.has_radiotap,"
-        "   signal_dbm = EXCLUDED.signal_dbm,"
-        "   channel = EXCLUDED.channel,"
-        "   data_rate_mbps = EXCLUDED.data_rate_mbps",
-        [sha256, link_type, has_radiotap, signal_dbm, channel, data_rate_mbps],
+        "   has_radiotap = EXCLUDED.has_radiotap",
+        [sha256, link_type, has_radiotap],
     )
 
 
@@ -167,7 +166,7 @@ def set_cached(
     )
 
 
-_REQUIRED_TABLES = {"ethernet_frames", "arp_packets", "capture_info"}
+_REQUIRED_TABLES = {"ethernet_frames", "arp_packets", "capture_info", "radiotap_frames"}
 
 _DATA_TABLES = [
     "packets",
@@ -177,6 +176,7 @@ _DATA_TABLES = [
     "ethernet_frames",
     "arp_packets",
     "capture_info",
+    "radiotap_frames",
     "pcap_meta",
 ]
 

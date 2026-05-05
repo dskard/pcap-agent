@@ -78,6 +78,13 @@ _ARP_PACKETS_SCHEMA = {
     "target_ip": pl.String,
 }
 
+_RADIOTAP_FRAMES_SCHEMA = {
+    "frame_id": pl.Int64,
+    "signal_dbm": pl.Float64,
+    "channel": pl.Int32,
+    "data_rate_mbps": pl.Float64,
+}
+
 
 @dataclass(frozen=True)
 class ParsedPcap:
@@ -87,11 +94,9 @@ class ParsedPcap:
     icmp_messages: pl.DataFrame
     ethernet_frames: pl.DataFrame
     arp_packets: pl.DataFrame
+    radiotap_frames: pl.DataFrame
     link_type: int
     has_radiotap: bool
-    signal_dbm: float | None
-    channel: int | None
-    data_rate_mbps: float | None
 
 
 def _freq_to_channel(freq_mhz: int) -> int | None:
@@ -112,29 +117,30 @@ def parse(pcap_path: Path | str) -> ParsedPcap:
         raw_packets = reader.read_all()
 
     has_radiotap = False
-    signal_dbm: float | None = None
-    channel: int | None = None
-    data_rate_mbps: float | None = None
-    for pkt in raw_packets:
-        if pkt.haslayer(RadioTap):
-            has_radiotap = True
-            rt = pkt[RadioTap]
-            sig = getattr(rt, "dBm_AntSignal", None)
-            freq = getattr(rt, "ChannelFrequency", None)
-            rate = getattr(rt, "Rate", None)
-            signal_dbm = float(sig) if sig is not None else None
-            channel = _freq_to_channel(freq) if freq is not None else None
-            data_rate_mbps = float(rate) / 2.0 if rate is not None else None
-            break
-
     packets_rows: list[dict] = []
     tcp_rows: list[dict] = []
     udp_rows: list[dict] = []
     icmp_rows: list[dict] = []
     ethernet_rows: list[dict] = []
     arp_rows: list[dict] = []
+    radiotap_rows: list[dict] = []
 
     for frame_id, pkt in enumerate(raw_packets):
+        if pkt.haslayer(RadioTap):
+            has_radiotap = True
+            rt = pkt[RadioTap]
+            sig = getattr(rt, "dBm_AntSignal", None)
+            freq = getattr(rt, "ChannelFrequency", None)
+            rate = getattr(rt, "Rate", None)
+            radiotap_rows.append(
+                {
+                    "frame_id": frame_id,
+                    "signal_dbm": float(sig) if sig is not None else None,
+                    "channel": _freq_to_channel(freq) if freq is not None else None,
+                    "data_rate_mbps": float(rate) / 2.0 if rate is not None else None,
+                }
+            )
+
         if pkt.haslayer(Ether):
             ether = pkt[Ether]
             if pkt.haslayer(Dot1Q):
@@ -282,9 +288,9 @@ def parse(pcap_path: Path | str) -> ParsedPcap:
         arp_packets=pl.DataFrame(arp_rows, schema=_ARP_PACKETS_SCHEMA)
         if arp_rows
         else pl.DataFrame(schema=_ARP_PACKETS_SCHEMA),
+        radiotap_frames=pl.DataFrame(radiotap_rows, schema=_RADIOTAP_FRAMES_SCHEMA)
+        if radiotap_rows
+        else pl.DataFrame(schema=_RADIOTAP_FRAMES_SCHEMA),
         link_type=link_type,
         has_radiotap=has_radiotap,
-        signal_dbm=signal_dbm,
-        channel=channel,
-        data_rate_mbps=data_rate_mbps,
     )
