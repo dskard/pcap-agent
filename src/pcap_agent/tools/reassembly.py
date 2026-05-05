@@ -43,7 +43,7 @@ def reassemble_stream(
             """
             SELECT FIRST(t.payload) AS payload
             FROM tcp_segments t
-            JOIN packets p ON p.packet_id = t.packet_id
+            JOIN packets p ON p.frame_id = t.frame_id
             WHERE p.src_ip = ?
               AND p.dst_ip = ?
               AND t.sport = ?
@@ -59,7 +59,7 @@ def reassemble_stream(
             """
             SELECT u.payload
             FROM udp_datagrams u
-            JOIN packets p ON p.packet_id = u.packet_id
+            JOIN packets p ON p.frame_id = u.frame_id
             WHERE p.src_ip = ?
               AND p.dst_ip = ?
               AND u.sport = ?

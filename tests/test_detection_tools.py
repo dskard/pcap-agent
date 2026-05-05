@@ -74,7 +74,7 @@ class TestDetectAnomalies:
         result = detect_anomalies(contamination=0.02)
         assert len(result) > 0
         expected = {
-            "packet_id", "timestamp", "src_ip", "dst_ip",
+            "frame_id", "timestamp", "src_ip", "dst_ip",
             "protocol", "length", "payload_size", "inter_arrival", "anomaly_score",
         }
         assert set(result[0].keys()) == expected

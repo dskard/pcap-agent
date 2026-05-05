@@ -71,11 +71,11 @@ class TestIngestRollback:
     """Verify ingest() rolls back on mid-ingest failure."""
 
     def test_rollback_on_failure(self, duckdb_conn, parsed_pcap):
-        # Pre-insert packet_id=0 to trigger a PRIMARY KEY violation on the
+        # Pre-insert frame_id=0 to trigger a PRIMARY KEY violation on the
         # second ingest() call, forcing a failure after _load_df("packets").
         duckdb_conn.execute(
             "INSERT INTO packets"
-            " (packet_id, timestamp, src_ip, dst_ip, protocol, length, ttl)"
+            " (frame_id, timestamp, src_ip, dst_ip, protocol, length, ttl)"
             " VALUES (0, 0.0, '0.0.0.0', '0.0.0.0', 0, 0, 0)"
         )
         with pytest.raises(duckdb.ConstraintException):

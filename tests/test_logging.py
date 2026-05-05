@@ -2,8 +2,6 @@
 
 import logging
 
-import pytest
-
 from pcap_agent.tools.analysis import get_protocol_breakdown, get_top_talkers
 from pcap_agent.tools.query import query
 
@@ -123,7 +121,9 @@ class TestQueryLogging:
         with caplog.at_level(logging.WARNING, logger="pcap_agent.tools.query"):
             query("DROP TABLE packets")
 
-        warning_msgs = [r.message for r in caplog.records if r.levelno == logging.WARNING]
+        warning_msgs = [
+            r.message for r in caplog.records if r.levelno == logging.WARNING
+        ]
         assert any("DROP" in msg for msg in warning_msgs)
 
     def test_duckdb_error_logged_at_error(self, ingested_db, caplog):

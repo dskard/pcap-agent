@@ -43,7 +43,7 @@ class TestParsedPcapTypes:
 
     def test_packets_schema(self, parsed_pcap):
         expected = {
-            "packet_id": pl.Int64,
+            "frame_id": pl.Int64,
             "timestamp": pl.Float64,
             "src_ip": pl.String,
             "dst_ip": pl.String,
@@ -55,7 +55,7 @@ class TestParsedPcapTypes:
 
     def test_tcp_segments_schema(self, parsed_pcap):
         expected = {
-            "packet_id": pl.Int64,
+            "frame_id": pl.Int64,
             "sport": pl.Int32,
             "dport": pl.Int32,
             "flags": pl.String,
@@ -67,7 +67,7 @@ class TestParsedPcapTypes:
 
     def test_udp_datagrams_schema(self, parsed_pcap):
         expected = {
-            "packet_id": pl.Int64,
+            "frame_id": pl.Int64,
             "sport": pl.Int32,
             "dport": pl.Int32,
             "payload": pl.Binary,
@@ -76,7 +76,7 @@ class TestParsedPcapTypes:
 
     def test_icmp_messages_schema(self, parsed_pcap):
         expected = {
-            "packet_id": pl.Int64,
+            "frame_id": pl.Int64,
             "type": pl.Int32,
             "code": pl.Int32,
             "payload": pl.Binary,
@@ -107,9 +107,9 @@ class TestTcpStreamSpotCheck:
         assert len(self.tcp) == TCP_PACKET_COUNT
 
     def test_src_ip(self, parsed_pcap):
-        pkt_ids = self.tcp["packet_id"].to_list()
+        pkt_ids = self.tcp["frame_id"].to_list()
         src_ips = (
-            parsed_pcap.packets.filter(pl.col("packet_id").is_in(pkt_ids))["src_ip"]
+            parsed_pcap.packets.filter(pl.col("frame_id").is_in(pkt_ids))["src_ip"]
             .unique()
             .to_list()
         )
@@ -127,12 +127,12 @@ class TestUdpTopTalkerSpotCheck:
     def _top_talker(self, parsed_pcap):
         pkt_ids = (
             parsed_pcap.packets.filter(pl.col("src_ip") == UDP_TOP_TALKER_IP)[
-                "packet_id"
+                "frame_id"
             ]
             .to_list()
         )
         self.udp = parsed_pcap.udp_datagrams.filter(
-            pl.col("packet_id").is_in(pkt_ids)
+            pl.col("frame_id").is_in(pkt_ids)
         )
 
     def test_row_count(self):
@@ -157,9 +157,9 @@ class TestUdpAnomalySpotCheck:
         assert self.udp["dport"].unique().to_list() == [ANOMALY_DPORT]
 
     def test_src_ip(self, parsed_pcap):
-        pkt_ids = self.udp["packet_id"].to_list()
+        pkt_ids = self.udp["frame_id"].to_list()
         src_ips = (
-            parsed_pcap.packets.filter(pl.col("packet_id").is_in(pkt_ids))["src_ip"]
+            parsed_pcap.packets.filter(pl.col("frame_id").is_in(pkt_ids))["src_ip"]
             .unique()
             .to_list()
         )
@@ -181,18 +181,18 @@ class TestIcmpSpotCheck:
         assert self.icmp["code"].unique().to_list() == [ICMP_CODE]
 
     def test_src_ip(self, parsed_pcap):
-        pkt_ids = self.icmp["packet_id"].to_list()
+        pkt_ids = self.icmp["frame_id"].to_list()
         src_ips = (
-            parsed_pcap.packets.filter(pl.col("packet_id").is_in(pkt_ids))["src_ip"]
+            parsed_pcap.packets.filter(pl.col("frame_id").is_in(pkt_ids))["src_ip"]
             .unique()
             .to_list()
         )
         assert src_ips == [ICMP_SRC_IP]
 
     def test_dst_ip(self, parsed_pcap):
-        pkt_ids = self.icmp["packet_id"].to_list()
+        pkt_ids = self.icmp["frame_id"].to_list()
         dst_ips = (
-            parsed_pcap.packets.filter(pl.col("packet_id").is_in(pkt_ids))["dst_ip"]
+            parsed_pcap.packets.filter(pl.col("frame_id").is_in(pkt_ids))["dst_ip"]
             .unique()
             .to_list()
         )
