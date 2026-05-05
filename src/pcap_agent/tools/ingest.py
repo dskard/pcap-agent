@@ -79,9 +79,6 @@ def ingest_pcap(path: str | Path, db_dir: str | None = None) -> dict[str, Any]:
             sha256,
             frames.link_type,
             frames.has_radiotap,
-            frames.signal_dbm,
-            frames.channel,
-            frames.data_rate_mbps,
         )
         conn.commit()
     except Exception:
