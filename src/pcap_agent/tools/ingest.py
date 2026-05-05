@@ -33,12 +33,15 @@ def ingest_pcap(path: str | Path, db_dir: str | None = None) -> dict[str, Any]:
     # Reuse the existing connection when the target file is already open to
     # avoid leaking the previous handle and conflicting with DuckDB's
     # single-writer constraint.
+    schema_was_stale = False
     if _state.get_db_path() == db_path and _state.get_connection() is not None:
         conn = _state.require_connection()
     else:
         old_conn = _state.get_connection()
         conn = duckdb.connect(db_path)
         try:
+            # Check staleness before create_schema recreates any missing tables.
+            schema_was_stale = db.is_schema_stale(conn)
             db.create_schema(conn)
             _state.set_connection(conn, db_path)
         except Exception:
@@ -48,12 +51,20 @@ def ingest_pcap(path: str | Path, db_dir: str | None = None) -> dict[str, Any]:
             old_conn.close()
 
     if db.get_cached(conn, sha256) is not None:
-        logger.warning(
-            "File already cached (sha256=%s path=%s), skipping ingest",
-            sha256,
-            pcap_path,
-        )
-        return _summary(conn, sha256, db_path, cached=True)
+        if schema_was_stale:
+            logger.warning(
+                "Stale cache (sha256=%s path=%s): new tables missing, re-ingesting",
+                sha256,
+                pcap_path,
+            )
+            db.clear_data(conn, sha256)
+        else:
+            logger.warning(
+                "File already cached (sha256=%s path=%s), skipping ingest",
+                sha256,
+                pcap_path,
+            )
+            return _summary(conn, sha256, db_path, cached=True)
 
     frames = parser.parse(pcap_path)
     conn.begin()
