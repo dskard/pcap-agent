@@ -24,10 +24,7 @@ def get_layer2_summary() -> dict:
     if eth_count == 0:
         return {
             "error": "No Ethernet frame data found",
-            "hint": (
-                "This capture may use a non-Ethernet link type,"
-                " or no PCAP has been ingested yet."
-            ),
+            "hint": "This capture may use a non-Ethernet link type.",
         }
 
     ci = conn.execute(
@@ -63,10 +60,12 @@ def get_layer2_summary() -> dict:
         " GROUP BY dst_mac ORDER BY cnt DESC LIMIT 5"
     ).fetchall()
 
+    total_count = conn.execute("SELECT COUNT(*) FROM packets").fetchone()[0]
+
     result = {
         "link_type": link_type,
         "has_radiotap": has_radiotap,
-        "total_frame_count": eth_count,
+        "total_frame_count": total_count,
         "ethernet_frame_count": eth_count,
         "arp_request_count": arp_by_op.get(1, 0),
         "arp_reply_count": arp_by_op.get(2, 0),

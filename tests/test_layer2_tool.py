@@ -32,6 +32,7 @@ _VLAN_IP_SRC = "10.30.0.1"
 _VLAN_IP_DST = "10.30.0.2"
 
 _ETH_FRAME_COUNT = 4
+_IP_FRAME_COUNT = 2  # only IP-bearing frames land in the packets table
 _ARP_REQUEST_COUNT = 1
 _ARP_REPLY_COUNT = 1
 _UNIQUE_SRC_MACS = 3  # _ETH_SRC_A (x2), _ARP_SRC_MAC, _ARP_REP_SRC
@@ -119,7 +120,7 @@ class TestGetLayer2SummaryEthernetCapture:
 
     def test_total_frame_count(self, eth_conn):
         result = get_layer2_summary()
-        assert result["total_frame_count"] == _ETH_FRAME_COUNT
+        assert result["total_frame_count"] == _IP_FRAME_COUNT
 
     def test_ethernet_frame_count(self, eth_conn):
         result = get_layer2_summary()
