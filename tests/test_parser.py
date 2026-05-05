@@ -440,12 +440,14 @@ class TestEthernetParsing:
         assert parsed_eth.radiotap_frames.is_empty()
 
 
-_RT_SIGNAL_DBM = -65
-_RT_CHANNEL_FREQ = 2437  # channel 6
-_RT_RATE_RAW = 108  # 108 * 0.5 = 54 Mbps
-_RT_EXPECTED_CHANNEL = 6
-_RT_EXPECTED_RATE_MBPS = 54.0
 _RT_LINKTYPE = 127  # DLT_IEEE802_11_RADIO
+
+# Three distinct frames to verify all are captured, not just the first
+_RT_FRAMES = [
+    {"signal_dbm": -65, "freq": 2437, "rate_raw": 108, "channel": 6, "rate_mbps": 54.0},
+    {"signal_dbm": -72, "freq": 5180, "rate_raw": 24, "channel": 36, "rate_mbps": 12.0},
+    {"signal_dbm": -80, "freq": 2462, "rate_raw": 4, "channel": 11, "rate_mbps": 2.0},
+]
 
 
 class TestRadiotapParsing:
@@ -456,13 +458,14 @@ class TestRadiotapParsing:
         pkts = [
             RadioTap(
                 present="Rate+Channel+dBm_AntSignal",
-                Rate=_RT_RATE_RAW,
-                ChannelFrequency=_RT_CHANNEL_FREQ,
-                dBm_AntSignal=_RT_SIGNAL_DBM,
+                Rate=f["rate_raw"],
+                ChannelFrequency=f["freq"],
+                dBm_AntSignal=f["signal_dbm"],
             )
             / Dot11()
             / IP(src="10.0.0.1", dst="10.0.0.2")
-            / TCP(sport=1234, dport=80, flags="S"),
+            / TCP(sport=1234, dport=80, flags="S")
+            for f in _RT_FRAMES
         ]
         wrpcap(str(pcap_path), pkts)
         return pcap_path
@@ -480,16 +483,22 @@ class TestRadiotapParsing:
         assert parsed_rt.has_radiotap is True
 
     def test_radiotap_frames_row_count(self, parsed_rt):
-        assert len(parsed_rt.radiotap_frames) == 1
+        assert len(parsed_rt.radiotap_frames) == len(_RT_FRAMES)
 
-    def test_signal_dbm(self, parsed_rt):
-        assert parsed_rt.radiotap_frames["signal_dbm"][0] == float(_RT_SIGNAL_DBM)
+    def test_frame_ids_are_sequential(self, parsed_rt):
+        assert parsed_rt.radiotap_frames["frame_id"].to_list() == [0, 1, 2]
 
-    def test_channel(self, parsed_rt):
-        assert parsed_rt.radiotap_frames["channel"][0] == _RT_EXPECTED_CHANNEL
+    def test_signal_dbm_all_frames(self, parsed_rt):
+        expected = [float(f["signal_dbm"]) for f in _RT_FRAMES]
+        assert parsed_rt.radiotap_frames["signal_dbm"].to_list() == expected
 
-    def test_data_rate_mbps(self, parsed_rt):
-        assert parsed_rt.radiotap_frames["data_rate_mbps"][0] == _RT_EXPECTED_RATE_MBPS
+    def test_channel_all_frames(self, parsed_rt):
+        expected = [f["channel"] for f in _RT_FRAMES]
+        assert parsed_rt.radiotap_frames["channel"].to_list() == expected
+
+    def test_data_rate_mbps_all_frames(self, parsed_rt):
+        expected = [f["rate_mbps"] for f in _RT_FRAMES]
+        assert parsed_rt.radiotap_frames["data_rate_mbps"].to_list() == expected
 
 
 class TestRawIpLinkType:
