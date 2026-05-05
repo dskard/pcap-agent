@@ -200,3 +200,21 @@ class TestGetCached:
         self._insert(duckdb_conn)
         result = db.get_cached(duckdb_conn, "b" * 64)
         assert result is None
+
+
+class TestRadiotapFrames:
+    def test_table_empty_for_non_radiotap_capture(self, ingested_conn):
+        count = ingested_conn.execute(
+            "SELECT COUNT(*) FROM radiotap_frames"
+        ).fetchone()[0]
+        assert count == 0
+
+    def test_schema_has_expected_columns(self, duckdb_conn):
+        cols = {
+            row[0]
+            for row in duckdb_conn.execute(
+                "SELECT column_name FROM information_schema.columns"
+                " WHERE table_name = 'radiotap_frames'"
+            ).fetchall()
+        }
+        assert cols == {"frame_id", "signal_dbm", "channel", "data_rate_mbps"}

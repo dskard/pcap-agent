@@ -116,6 +116,7 @@ def ingest(
         _load_df(conn, "icmp_messages", frames.icmp_messages)
         _load_df(conn, "ethernet_frames", frames.ethernet_frames)
         _load_df(conn, "arp_packets", frames.arp_packets)
+        _load_df(conn, "radiotap_frames", frames.radiotap_frames)
         if begin_transaction:
             conn.commit()
     except Exception:
