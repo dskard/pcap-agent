@@ -15,10 +15,10 @@ logger = logging.getLogger(__name__)
 _PORT_SCAN_SQL = """
 WITH port_contacts AS (
     SELECT p.src_ip, t.dport
-    FROM packets p JOIN tcp_segments t ON p.packet_id = t.packet_id
+    FROM packets p JOIN tcp_segments t ON p.frame_id = t.frame_id
     UNION ALL
     SELECT p.src_ip, u.dport
-    FROM packets p JOIN udp_datagrams u ON p.packet_id = u.packet_id
+    FROM packets p JOIN udp_datagrams u ON p.frame_id = u.frame_id
 )
 SELECT src_ip, COUNT(DISTINCT dport) AS distinct_ports
 FROM port_contacts
@@ -28,15 +28,15 @@ ORDER BY distinct_ports DESC
 
 _ANOMALY_SQL = """
 WITH payload_sizes AS (
-    SELECT packet_id, OCTET_LENGTH(payload) AS payload_size FROM tcp_segments
+    SELECT frame_id, OCTET_LENGTH(payload) AS payload_size FROM tcp_segments
     UNION ALL
-    SELECT packet_id, OCTET_LENGTH(payload) AS payload_size FROM udp_datagrams
+    SELECT frame_id, OCTET_LENGTH(payload) AS payload_size FROM udp_datagrams
     UNION ALL
-    SELECT packet_id, OCTET_LENGTH(payload) AS payload_size FROM icmp_messages
+    SELECT frame_id, OCTET_LENGTH(payload) AS payload_size FROM icmp_messages
 ),
 enriched AS (
     SELECT
-        p.packet_id,
+        p.frame_id,
         p.timestamp,
         p.src_ip,
         p.dst_ip,
@@ -44,21 +44,21 @@ enriched AS (
         p.length,
         COALESCE(ps.payload_size, 0) AS payload_size,
         COALESCE(
-            p.timestamp - LAG(p.timestamp) OVER (ORDER BY p.timestamp, p.packet_id),
+            p.timestamp - LAG(p.timestamp) OVER (ORDER BY p.timestamp, p.frame_id),
             0.0
         ) AS inter_arrival
     FROM packets p
-    LEFT JOIN payload_sizes ps ON p.packet_id = ps.packet_id
+    LEFT JOIN payload_sizes ps ON p.frame_id = ps.frame_id
 )
 SELECT
-    packet_id, timestamp, src_ip, dst_ip,
+    frame_id, timestamp, src_ip, dst_ip,
     protocol, length, payload_size, inter_arrival
 FROM enriched
 ORDER BY timestamp
 """
 
 _ANOMALY_COLS = [
-    "packet_id", "timestamp", "src_ip", "dst_ip",
+    "frame_id", "timestamp", "src_ip", "dst_ip",
     "protocol", "length", "payload_size", "inter_arrival",
 ]
 

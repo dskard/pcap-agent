@@ -15,7 +15,7 @@ _PROTO_ICMP = 1
 _PROTO_ICMPV6 = 58
 
 _PACKETS_SCHEMA = {
-    "packet_id": pl.Int64,
+    "frame_id": pl.Int64,
     "timestamp": pl.Float64,
     "src_ip": pl.String,
     "dst_ip": pl.String,
@@ -25,7 +25,7 @@ _PACKETS_SCHEMA = {
 }
 
 _TCP_SCHEMA = {
-    "packet_id": pl.Int64,
+    "frame_id": pl.Int64,
     "sport": pl.Int32,
     "dport": pl.Int32,
     "flags": pl.String,
@@ -35,14 +35,14 @@ _TCP_SCHEMA = {
 }
 
 _UDP_SCHEMA = {
-    "packet_id": pl.Int64,
+    "frame_id": pl.Int64,
     "sport": pl.Int32,
     "dport": pl.Int32,
     "payload": pl.Binary,
 }
 
 _ICMP_SCHEMA = {
-    "packet_id": pl.Int64,
+    "frame_id": pl.Int64,
     "type": pl.Int32,
     "code": pl.Int32,
     "payload": pl.Binary,
@@ -66,8 +66,8 @@ def parse(pcap_path: Path | str) -> ParsedPcap:
     tcp_rows: list[dict] = []
     udp_rows: list[dict] = []
     icmp_rows: list[dict] = []
-    # packet_id is a sequential index over IP-only frames, not the PCAP frame number.
-    packet_id = 0
+    # frame_id is a sequential index over IP-only frames, not the PCAP frame number.
+    frame_id = 0
 
     for pkt in raw_packets:
         if pkt.haslayer(IP):
@@ -96,7 +96,7 @@ def parse(pcap_path: Path | str) -> ParsedPcap:
 
         packets_rows.append(
             {
-                "packet_id": packet_id,
+                "frame_id": frame_id,
                 "timestamp": float(pkt.time),
                 "src_ip": src_ip,
                 "dst_ip": dst_ip,
@@ -114,7 +114,7 @@ def parse(pcap_path: Path | str) -> ParsedPcap:
             tcp = pkt[TCP]
             tcp_rows.append(
                 {
-                    "packet_id": packet_id,
+                    "frame_id": frame_id,
                     "sport": int(tcp.sport),
                     "dport": int(tcp.dport),
                     "flags": str(tcp.flags),
@@ -127,7 +127,7 @@ def parse(pcap_path: Path | str) -> ParsedPcap:
             udp = pkt[UDP]
             udp_rows.append(
                 {
-                    "packet_id": packet_id,
+                    "frame_id": frame_id,
                     "sport": int(udp.sport),
                     "dport": int(udp.dport),
                     "payload": bytes(udp.payload) if udp.payload else b"",
@@ -137,7 +137,7 @@ def parse(pcap_path: Path | str) -> ParsedPcap:
             icmp = pkt[ICMP]
             icmp_rows.append(
                 {
-                    "packet_id": packet_id,
+                    "frame_id": frame_id,
                     "type": int(icmp.type),
                     "code": int(icmp.code),
                     "payload": bytes(icmp.payload) if icmp.payload else b"",
@@ -148,14 +148,14 @@ def parse(pcap_path: Path | str) -> ParsedPcap:
             if icmpv6 and hasattr(icmpv6, "type"):
                 icmp_rows.append(
                     {
-                        "packet_id": packet_id,
+                        "frame_id": frame_id,
                         "type": int(icmpv6.type),
                         "code": int(icmpv6.code) if hasattr(icmpv6, "code") else 0,
                         "payload": bytes(icmpv6.payload) if icmpv6.payload else b"",
                     }
                 )
 
-        packet_id += 1
+        frame_id += 1
 
     logger.info("Parsed %d IP/IPv6 packets from %s", len(packets_rows), pcap_path)
     logger.debug(

@@ -14,7 +14,7 @@ if TYPE_CHECKING:
 
 _DDL = """
 CREATE TABLE IF NOT EXISTS packets (
-    packet_id BIGINT PRIMARY KEY,
+    frame_id BIGINT PRIMARY KEY,
     timestamp DOUBLE,
     src_ip VARCHAR,
     dst_ip VARCHAR,
@@ -24,7 +24,7 @@ CREATE TABLE IF NOT EXISTS packets (
 );
 
 CREATE TABLE IF NOT EXISTS tcp_segments (
-    packet_id BIGINT,
+    frame_id BIGINT,
     sport INTEGER,
     dport INTEGER,
     flags VARCHAR,
@@ -34,14 +34,14 @@ CREATE TABLE IF NOT EXISTS tcp_segments (
 );
 
 CREATE TABLE IF NOT EXISTS udp_datagrams (
-    packet_id BIGINT,
+    frame_id BIGINT,
     sport INTEGER,
     dport INTEGER,
     payload BLOB
 );
 
 CREATE TABLE IF NOT EXISTS icmp_messages (
-    packet_id BIGINT,
+    frame_id BIGINT,
     type INTEGER,
     code INTEGER,
     payload BLOB

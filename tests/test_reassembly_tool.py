@@ -179,10 +179,12 @@ class TestTCPRetransmission:
     def retransmit_conn(self, duckdb_conn):
         payload = b"hello"
         duckdb_conn.execute(
-            "INSERT INTO packets VALUES (1, 1700000000.0, '1.1.1.1', '2.2.2.2', 6, 50, 64)"
+            "INSERT INTO packets VALUES "
+            "(1, 1700000000.0, '1.1.1.1', '2.2.2.2', 6, 50, 64)"
         )
         duckdb_conn.execute(
-            "INSERT INTO packets VALUES (2, 1700000001.0, '1.1.1.1', '2.2.2.2', 6, 50, 64)"
+            "INSERT INTO packets VALUES "
+            "(2, 1700000001.0, '1.1.1.1', '2.2.2.2', 6, 50, 64)"
         )
         duckdb_conn.execute(
             "INSERT INTO tcp_segments VALUES (1, 5000, 80, 'PA', 1000, 0, ?)", [payload]
