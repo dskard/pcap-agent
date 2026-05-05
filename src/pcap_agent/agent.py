@@ -8,6 +8,7 @@ from pcap_agent import telemetry
 from pcap_agent.tools.analysis import get_protocol_breakdown, get_top_talkers
 from pcap_agent.tools.detection import detect_anomalies, detect_port_scans
 from pcap_agent.tools.ingest import ingest_pcap
+from pcap_agent.tools.layer2 import get_layer2_summary
 from pcap_agent.tools.query import query
 from pcap_agent.tools.reassembly import reassemble_stream
 
@@ -33,7 +34,7 @@ The data is ready for analysis."
 def create_agent(
     *, api_key: str, model: str, pcap_file: str | None = None
 ) -> "ChatAnthropic":
-    """Return a ChatAnthropic session with all 7 analysis tools registered."""
+    """Return a ChatAnthropic session with all 8 analysis tools registered."""
     system_prompt = _SYSTEM_PROMPT
     if pcap_file:
         system_prompt += _PCAP_LOADED_SUFFIX.format(pcap_file=pcap_file)
@@ -48,6 +49,7 @@ def create_agent(
         ingest_pcap,
         get_protocol_breakdown,
         get_top_talkers,
+        get_layer2_summary,
         query,
         detect_port_scans,
         detect_anomalies,

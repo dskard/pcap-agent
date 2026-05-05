@@ -35,6 +35,7 @@ class TestAgentLogging:
             "ingest_pcap",
             "get_protocol_breakdown",
             "get_top_talkers",
+            "get_layer2_summary",
             "query",
             "detect_port_scans",
             "detect_anomalies",
@@ -43,7 +44,7 @@ class TestAgentLogging:
         for tool_name in expected_tools:
             assert any(tool_name in msg for msg in debug_msgs)
 
-    def test_seven_tool_registrations_logged(self, caplog):
+    def test_eight_tool_registrations_logged(self, caplog):
         from pcap_agent.agent import create_agent
 
         with caplog.at_level(logging.DEBUG, logger="pcap_agent.agent"):
@@ -53,7 +54,7 @@ class TestAgentLogging:
             r for r in caplog.records
             if r.levelno == logging.DEBUG and r.name == "pcap_agent.agent"
         ]
-        assert len(debug_msgs) == 7
+        assert len(debug_msgs) == 8
 
     def test_logger_uses_module_name(self):
         import pcap_agent.agent as agent_mod
