@@ -8,9 +8,22 @@ from constants import (
     TOTAL_IP,
     UDP_TOTAL,
 )
+from scapy.all import (  # type: ignore[import-untyped]
+    IP,
+    TCP,
+    Dot11,
+    RadioTap,
+    wrpcap,
+)
 
 from pcap_agent.tools import _state
 from pcap_agent.tools.ingest import ingest_pcap
+
+_RT_FRAMES_DATA = [
+    {"signal_dbm": -65, "freq": 2437, "rate_raw": 108, "channel": 6, "rate_mbps": 54.0},
+    {"signal_dbm": -72, "freq": 5180, "rate_raw": 24, "channel": 36, "rate_mbps": 12.0},
+    {"signal_dbm": -80, "freq": 2462, "rate_raw": 4, "channel": 11, "rate_mbps": 2.0},
+]
 
 
 @pytest.fixture
@@ -82,6 +95,12 @@ class TestIngestPcap:
         assert isinstance(row[0], int)
         assert row[1] is False
 
+    def test_radiotap_frames_empty_for_non_radiotap_pcap(self, ingested_conn):
+        count = ingested_conn.execute(
+            "SELECT COUNT(*) FROM radiotap_frames"
+        ).fetchone()[0]
+        assert count == 0
+
 
 class TestIngestCaching:
     def test_second_ingest_returns_cached(
@@ -142,3 +161,69 @@ class TestIngestCaching:
         result2 = ingest_pcap(str(synthetic_pcap), db_dir=db_dir)
         assert result2["cached"] is False
         assert result2["n_packets"] == TOTAL_IP
+
+
+class TestIngestRadiotap:
+    @pytest.fixture()
+    def radiotap_pcap(self, tmp_path):
+        pkts = [
+            RadioTap(
+                present="Rate+Channel+dBm_AntSignal",
+                Rate=f["rate_raw"],
+                ChannelFrequency=f["freq"],
+                dBm_AntSignal=f["signal_dbm"],
+            )
+            / Dot11()
+            / IP(src="10.0.0.1", dst="10.0.0.2")
+            / TCP(sport=1234, dport=80, flags="S")
+            for f in _RT_FRAMES_DATA
+        ]
+        pcap_path = tmp_path / "radiotap.pcap"
+        wrpcap(str(pcap_path), pkts)
+        return pcap_path
+
+    @pytest.fixture()
+    def radiotap_ingest_result(self, radiotap_pcap, tmp_path, _restore_state):
+        db_dir = str(tmp_path / "rtdb")
+        return ingest_pcap(str(radiotap_pcap), db_dir=db_dir)
+
+    @pytest.fixture()
+    def radiotap_conn(self, radiotap_ingest_result):  # noqa: ARG002
+        return _state.require_connection()
+
+    def test_radiotap_frames_row_count(self, radiotap_conn):
+        count = radiotap_conn.execute(
+            "SELECT COUNT(*) FROM radiotap_frames"
+        ).fetchone()[0]
+        assert count == len(_RT_FRAMES_DATA)
+
+    def test_radiotap_signal_dbm(self, radiotap_conn):
+        rows = radiotap_conn.execute(
+            "SELECT signal_dbm FROM radiotap_frames ORDER BY frame_id"
+        ).fetchall()
+        expected = [float(f["signal_dbm"]) for f in _RT_FRAMES_DATA]
+        assert [r[0] for r in rows] == expected
+
+    def test_radiotap_channel(self, radiotap_conn):
+        rows = radiotap_conn.execute(
+            "SELECT channel FROM radiotap_frames ORDER BY frame_id"
+        ).fetchall()
+        expected = [f["channel"] for f in _RT_FRAMES_DATA]
+        assert [r[0] for r in rows] == expected
+
+    def test_radiotap_data_rate_mbps(self, radiotap_conn):
+        rows = radiotap_conn.execute(
+            "SELECT data_rate_mbps FROM radiotap_frames ORDER BY frame_id"
+        ).fetchall()
+        expected = [f["rate_mbps"] for f in _RT_FRAMES_DATA]
+        assert [r[0] for r in rows] == expected
+
+    def test_capture_info_has_radiotap_true(
+        self, radiotap_conn, radiotap_ingest_result
+    ):
+        row = radiotap_conn.execute(
+            "SELECT has_radiotap FROM capture_info WHERE sha256 = ?",
+            [radiotap_ingest_result["sha256"]],
+        ).fetchone()
+        assert row is not None
+        assert row[0] is True
