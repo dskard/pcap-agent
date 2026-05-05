@@ -16,6 +16,8 @@ _EXPECTED_TABLES = {
     "tcp_segments",
     "udp_datagrams",
     "icmp_messages",
+    "ethernet_frames",
+    "arp_packets",
     "pcap_meta",
 }
 

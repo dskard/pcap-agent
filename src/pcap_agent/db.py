@@ -47,6 +47,25 @@ CREATE TABLE IF NOT EXISTS icmp_messages (
     payload BLOB
 );
 
+CREATE TABLE IF NOT EXISTS ethernet_frames (
+    frame_id   BIGINT PRIMARY KEY,
+    src_mac    VARCHAR,
+    dst_mac    VARCHAR,
+    ethertype  INTEGER,
+    vlan_id    INTEGER
+);
+
+CREATE TABLE IF NOT EXISTS arp_packets (
+    frame_id    BIGINT PRIMARY KEY,
+    hw_type     INTEGER,
+    proto_type  INTEGER,
+    operation   INTEGER,
+    sender_mac  VARCHAR,
+    sender_ip   VARCHAR,
+    target_mac  VARCHAR,
+    target_ip   VARCHAR
+);
+
 CREATE TABLE IF NOT EXISTS pcap_meta (
     sha256 VARCHAR PRIMARY KEY,
     pcap_path VARCHAR,
@@ -82,6 +101,8 @@ def ingest(
         _load_df(conn, "tcp_segments", frames.tcp_segments)
         _load_df(conn, "udp_datagrams", frames.udp_datagrams)
         _load_df(conn, "icmp_messages", frames.icmp_messages)
+        _load_df(conn, "ethernet_frames", frames.ethernet_frames)
+        _load_df(conn, "arp_packets", frames.arp_packets)
         if begin_transaction:
             conn.commit()
     except Exception:
