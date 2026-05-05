@@ -167,6 +167,44 @@ def set_cached(
     )
 
 
+_REQUIRED_TABLES = {"ethernet_frames", "arp_packets", "capture_info"}
+
+_DATA_TABLES = [
+    "packets",
+    "tcp_segments",
+    "udp_datagrams",
+    "icmp_messages",
+    "ethernet_frames",
+    "arp_packets",
+    "capture_info",
+    "pcap_meta",
+]
+
+
+def is_schema_stale(conn: duckdb.DuckDBPyConnection) -> bool:
+    """Return True if any of the new tables are missing from the database."""
+    rows = conn.execute(
+        "SELECT table_name FROM information_schema.tables WHERE table_schema = 'main'"
+    ).fetchall()
+    existing = {r[0] for r in rows}
+    return not _REQUIRED_TABLES.issubset(existing)
+
+
+def clear_data(conn: duckdb.DuckDBPyConnection, sha256: str) -> None:
+    """Delete all rows from data tables and remove the pcap_meta cache entry.
+
+    Used when a stale cache is detected so that re-ingest starts clean.
+    """
+    conn.execute("DELETE FROM pcap_meta WHERE sha256 = ?", [sha256])
+    for table in _DATA_TABLES:
+        if table == "pcap_meta":
+            continue
+        try:
+            conn.execute(f'DELETE FROM "{table}"')
+        except Exception as e:
+            logger.warning("Failed to clear table %s: %s", table, e)
+
+
 def get_cached(
     conn: duckdb.DuckDBPyConnection, sha256: str
 ) -> dict[str, Any] | None:

@@ -118,3 +118,27 @@ class TestIngestCaching:
         result2 = ingest_pcap(str(synthetic_pcap), db_dir=db_dir)
         assert isinstance(result2["top_talkers"], list)
         assert len(result2["top_talkers"]) > 0
+
+    @pytest.mark.parametrize(
+        "missing_table",
+        ["ethernet_frames", "arp_packets", "capture_info"],
+    )
+    def test_stale_cache_triggers_reingest(
+        self, synthetic_pcap, tmp_path, _restore_state, missing_table
+    ):
+        db_dir = str(tmp_path)
+        result1 = ingest_pcap(str(synthetic_pcap), db_dir=db_dir)
+        db_path = result1["db_path"]
+
+        # Simulate an upgrade: release the connection, drop a new table via a
+        # separate handle (as if the DB was created by an older pcap-agent that
+        # lacked these tables), then let ingest_pcap re-open it.
+        _state.get_connection().close()
+        _state.reset()
+        stale_conn = duckdb.connect(db_path)
+        stale_conn.execute(f'DROP TABLE "{missing_table}"')
+        stale_conn.close()
+
+        result2 = ingest_pcap(str(synthetic_pcap), db_dir=db_dir)
+        assert result2["cached"] is False
+        assert result2["n_packets"] == TOTAL_IP
