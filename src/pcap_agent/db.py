@@ -181,6 +181,34 @@ _DATA_TABLES = [
 ]
 
 
+_SCHEMA_EXCLUDED_TABLES = frozenset({"pcap_meta", "capture_info"})
+
+
+def get_schema(conn: duckdb.DuckDBPyConnection) -> str:
+    """Return a compact schema string for all analysis-facing tables.
+
+    pcap_meta and capture_info are excluded as internal tables.
+    Columns follow ordinal_position within each table.
+    """
+    rows = conn.execute(
+        "SELECT table_name, column_name, data_type"
+        " FROM information_schema.columns"
+        " WHERE table_schema = 'main'"
+        " ORDER BY table_name, ordinal_position"
+    ).fetchall()
+
+    tables: dict[str, list[str]] = {}
+    for table_name, column_name, data_type in rows:
+        if table_name in _SCHEMA_EXCLUDED_TABLES:
+            continue
+        tables.setdefault(table_name, []).append(f"{column_name} {data_type}")
+
+    lines = ["Database schema:"]
+    for table_name, cols in sorted(tables.items()):
+        lines.append(f"  {table_name}: {', '.join(cols)}")
+    return "\n".join(lines)
+
+
 def is_schema_stale(conn: duckdb.DuckDBPyConnection) -> bool:
     """Return True if any of the new tables are missing from the database."""
     rows = conn.execute(

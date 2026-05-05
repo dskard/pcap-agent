@@ -218,3 +218,42 @@ class TestRadiotapFrames:
             ).fetchall()
         }
         assert cols == {"frame_id", "signal_dbm", "channel", "data_rate_mbps"}
+
+
+class TestGetSchema:
+    _ANALYSIS_TABLES = {
+        "packets",
+        "tcp_segments",
+        "udp_datagrams",
+        "icmp_messages",
+        "ethernet_frames",
+        "arp_packets",
+        "radiotap_frames",
+    }
+
+    def test_returns_string(self, duckdb_conn):
+        result = db.get_schema(duckdb_conn)
+        assert isinstance(result, str)
+
+    def test_starts_with_header(self, duckdb_conn):
+        result = db.get_schema(duckdb_conn)
+        assert result.startswith("Database schema:")
+
+    def test_analysis_tables_included(self, duckdb_conn):
+        result = db.get_schema(duckdb_conn)
+        for table in self._ANALYSIS_TABLES:
+            assert table in result
+
+    def test_capture_info_excluded(self, duckdb_conn):
+        result = db.get_schema(duckdb_conn)
+        assert "capture_info" not in result
+
+    def test_pcap_meta_excluded(self, duckdb_conn):
+        result = db.get_schema(duckdb_conn)
+        assert "pcap_meta" not in result
+
+    def test_radiotap_frames_columns_present(self, duckdb_conn):
+        result = db.get_schema(duckdb_conn)
+        assert "signal_dbm" in result
+        assert "channel" in result
+        assert "data_rate_mbps" in result
