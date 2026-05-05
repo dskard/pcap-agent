@@ -30,9 +30,11 @@ from scapy.all import (  # type: ignore[import-untyped]
     TCP,
     UDP,
     Dot1Q,
+    Dot11,
     Ether,
     ICMPv6EchoRequest,
     IPv6,
+    RadioTap,
     Raw,
     wrpcap,
 )
@@ -427,3 +429,76 @@ class TestEthernetParsing:
     def test_l3_analysis_works_for_ethernet_capture(self, parsed_eth):
         # IP-bearing Ethernet frames still produce packets rows
         assert len(parsed_eth.packets) == 2  # Ether/IP/UDP + VLAN/IP/TCP
+
+    def test_link_type_is_ethernet(self, parsed_eth):
+        assert parsed_eth.link_type == 1  # DLT_EN10MB
+
+    def test_has_radiotap_false_for_ethernet(self, parsed_eth):
+        assert parsed_eth.has_radiotap is False
+
+    def test_wifi_fields_null_for_ethernet(self, parsed_eth):
+        assert parsed_eth.signal_dbm is None
+        assert parsed_eth.channel is None
+        assert parsed_eth.data_rate_mbps is None
+
+
+_RT_SIGNAL_DBM = -65
+_RT_CHANNEL_FREQ = 2437  # channel 6
+_RT_RATE_RAW = 108  # 108 * 0.5 = 54 Mbps
+_RT_EXPECTED_CHANNEL = 6
+_RT_EXPECTED_RATE_MBPS = 54.0
+_RT_LINKTYPE = 127  # DLT_IEEE802_11_RADIO
+
+
+class TestRadiotapParsing:
+    @pytest.fixture(scope="class")
+    def radiotap_pcap(self, tmp_path_factory):
+        tmp_path = tmp_path_factory.mktemp("rt_pcap")
+        pcap_path = tmp_path / "radiotap.pcap"
+        pkts = [
+            RadioTap(
+                present="Rate+Channel+dBm_AntSignal",
+                Rate=_RT_RATE_RAW,
+                ChannelFrequency=_RT_CHANNEL_FREQ,
+                dBm_AntSignal=_RT_SIGNAL_DBM,
+            )
+            / Dot11()
+            / IP(src="10.0.0.1", dst="10.0.0.2")
+            / TCP(sport=1234, dport=80, flags="S"),
+        ]
+        wrpcap(str(pcap_path), pkts)
+        return pcap_path
+
+    @pytest.fixture(scope="class")
+    def parsed_rt(self, radiotap_pcap):
+        from pcap_agent import parser
+
+        return parser.parse(radiotap_pcap)
+
+    def test_link_type_is_radiotap(self, parsed_rt):
+        assert parsed_rt.link_type == _RT_LINKTYPE
+
+    def test_has_radiotap_true(self, parsed_rt):
+        assert parsed_rt.has_radiotap is True
+
+    def test_signal_dbm(self, parsed_rt):
+        assert parsed_rt.signal_dbm == float(_RT_SIGNAL_DBM)
+
+    def test_channel(self, parsed_rt):
+        assert parsed_rt.channel == _RT_EXPECTED_CHANNEL
+
+    def test_data_rate_mbps(self, parsed_rt):
+        assert parsed_rt.data_rate_mbps == _RT_EXPECTED_RATE_MBPS
+
+
+class TestRawIpLinkType:
+    def test_link_type_is_integer(self, parsed_pcap):
+        assert isinstance(parsed_pcap.link_type, int)
+
+    def test_has_radiotap_false(self, parsed_pcap):
+        assert parsed_pcap.has_radiotap is False
+
+    def test_wifi_fields_null(self, parsed_pcap):
+        assert parsed_pcap.signal_dbm is None
+        assert parsed_pcap.channel is None
+        assert parsed_pcap.data_rate_mbps is None

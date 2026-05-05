@@ -60,6 +60,15 @@ def ingest_pcap(path: str | Path, db_dir: str | None = None) -> dict[str, Any]:
     try:
         db.ingest(conn, frames, begin_transaction=False)
         db.set_cached(conn, sha256, str(pcap_path))
+        db.set_capture_info(
+            conn,
+            sha256,
+            frames.link_type,
+            frames.has_radiotap,
+            frames.signal_dbm,
+            frames.channel,
+            frames.data_rate_mbps,
+        )
         conn.commit()
     except Exception:
         conn.rollback()

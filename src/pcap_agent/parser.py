@@ -14,8 +14,9 @@ from scapy.all import (  # type: ignore[import-untyped]
     Dot1Q,
     Ether,
     IPv6,
-    rdpcap,
+    RadioTap,
 )
+from scapy.utils import PcapReader  # type: ignore[import-untyped]
 
 logger = logging.getLogger(__name__)
 
@@ -86,12 +87,45 @@ class ParsedPcap:
     icmp_messages: pl.DataFrame
     ethernet_frames: pl.DataFrame
     arp_packets: pl.DataFrame
+    link_type: int
+    has_radiotap: bool
+    signal_dbm: float | None
+    channel: int | None
+    data_rate_mbps: float | None
+
+
+def _freq_to_channel(freq_mhz: int) -> int | None:
+    if 2412 <= freq_mhz <= 2472:
+        return (freq_mhz - 2412) // 5 + 1
+    if freq_mhz == 2484:
+        return 14
+    if 5180 <= freq_mhz <= 5885:
+        return (freq_mhz - 5000) // 5
+    return None
 
 
 def parse(pcap_path: Path | str) -> ParsedPcap:
-    """Parse a PCAP file and return four normalized DataFrames."""
+    """Parse a PCAP file and return normalized DataFrames plus capture metadata."""
     logger.info("Parsing PCAP file: %s", pcap_path)
-    raw_packets = rdpcap(str(pcap_path))
+    with PcapReader(str(pcap_path)) as reader:
+        link_type: int = reader.linktype
+        raw_packets = reader.read_all()
+
+    has_radiotap = False
+    signal_dbm: float | None = None
+    channel: int | None = None
+    data_rate_mbps: float | None = None
+    for pkt in raw_packets:
+        if pkt.haslayer(RadioTap):
+            has_radiotap = True
+            rt = pkt[RadioTap]
+            sig = getattr(rt, "dBm_AntSignal", None)
+            freq = getattr(rt, "ChannelFrequency", None)
+            rate = getattr(rt, "Rate", None)
+            signal_dbm = float(sig) if sig is not None else None
+            channel = _freq_to_channel(freq) if freq is not None else None
+            data_rate_mbps = float(rate) / 2.0 if rate is not None else None
+            break
 
     packets_rows: list[dict] = []
     tcp_rows: list[dict] = []
@@ -248,4 +282,9 @@ def parse(pcap_path: Path | str) -> ParsedPcap:
         arp_packets=pl.DataFrame(arp_rows, schema=_ARP_PACKETS_SCHEMA)
         if arp_rows
         else pl.DataFrame(schema=_ARP_PACKETS_SCHEMA),
+        link_type=link_type,
+        has_radiotap=has_radiotap,
+        signal_dbm=signal_dbm,
+        channel=channel,
+        data_rate_mbps=data_rate_mbps,
     )
