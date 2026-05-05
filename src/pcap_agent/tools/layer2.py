@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 def get_layer2_summary() -> dict:
     """Return L2 statistics for the ingested capture.
 
-    Fields: link_type, has_radiotap, total_frame_count, ethernet_frame_count,
+    Fields: link_type, has_radiotap, ethernet_frame_count, ip_packet_count,
     arp_request_count, arp_reply_count, unique_src_mac_count,
     unique_dst_mac_count, distinct_vlan_ids, top_5_src_macs, top_5_dst_macs.
 
@@ -60,13 +60,13 @@ def get_layer2_summary() -> dict:
         " GROUP BY dst_mac ORDER BY cnt DESC LIMIT 5"
     ).fetchall()
 
-    total_count = conn.execute("SELECT COUNT(*) FROM packets").fetchone()[0]
+    ip_count = conn.execute("SELECT COUNT(*) FROM packets").fetchone()[0]
 
     result = {
         "link_type": link_type,
         "has_radiotap": has_radiotap,
-        "total_frame_count": total_count,
         "ethernet_frame_count": eth_count,
+        "ip_packet_count": ip_count,
         "arp_request_count": arp_by_op.get(1, 0),
         "arp_reply_count": arp_by_op.get(2, 0),
         "unique_src_mac_count": unique_src,

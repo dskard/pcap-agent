@@ -118,9 +118,9 @@ class TestGetLayer2SummaryEthernetCapture:
         result = get_layer2_summary()
         assert result["has_radiotap"] is False
 
-    def test_total_frame_count(self, eth_conn):
+    def test_ip_packet_count(self, eth_conn):
         result = get_layer2_summary()
-        assert result["total_frame_count"] == _IP_FRAME_COUNT
+        assert result["ip_packet_count"] == _IP_FRAME_COUNT
 
     def test_ethernet_frame_count(self, eth_conn):
         result = get_layer2_summary()
@@ -173,8 +173,8 @@ class TestGetLayer2SummaryEthernetCapture:
         expected_keys = {
             "link_type",
             "has_radiotap",
-            "total_frame_count",
             "ethernet_frame_count",
+            "ip_packet_count",
             "arp_request_count",
             "arp_reply_count",
             "unique_src_mac_count",
