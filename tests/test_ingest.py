@@ -101,6 +101,11 @@ class TestIngestPcap:
         ).fetchone()[0]
         assert count == 0
 
+    def test_summary_has_schema_key(self, ingested_db):
+        assert "schema" in ingested_db
+        assert isinstance(ingested_db["schema"], str)
+        assert len(ingested_db["schema"]) > 0
+
 
 class TestIngestCaching:
     def test_second_ingest_returns_cached(
@@ -137,6 +142,16 @@ class TestIngestCaching:
         result2 = ingest_pcap(str(synthetic_pcap), db_dir=db_dir)
         assert isinstance(result2["top_talkers"], list)
         assert len(result2["top_talkers"]) > 0
+
+    def test_cached_result_has_schema_key(
+        self, synthetic_pcap, tmp_path, _restore_state
+    ):
+        db_dir = str(tmp_path)
+        ingest_pcap(str(synthetic_pcap), db_dir=db_dir)
+        result2 = ingest_pcap(str(synthetic_pcap), db_dir=db_dir)
+        assert "schema" in result2
+        assert isinstance(result2["schema"], str)
+        assert len(result2["schema"]) > 0
 
     @pytest.mark.parametrize(
         "missing_table",

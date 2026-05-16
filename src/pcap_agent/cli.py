@@ -122,6 +122,7 @@ def main(
         click.echo(f"Error: cannot open log file: {exc}", err=True)
         sys.exit(1)
 
+    schema: str | None = None
     if pcap_file:
         from rich.progress import Progress, SpinnerColumn, TextColumn
 
@@ -138,10 +139,13 @@ def main(
             click.echo("Warning: no packets were ingested from the file.", err=True)
         else:
             _print_synopsis(pcap_file, result)
+        schema = result.get("schema")
 
     from pcap_agent.agent import create_agent
 
-    chat = create_agent(api_key=api_key, model=model, pcap_file=pcap_file)
+    chat = create_agent(
+        api_key=api_key, model=model, pcap_file=pcap_file, schema=schema
+    )
 
     if ui == "app":
         chat.app()

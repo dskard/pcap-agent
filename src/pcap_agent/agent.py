@@ -46,14 +46,15 @@ Not supported (no data captured or decoded):
 _PCAP_LOADED_SUFFIX = "\nA PCAP file has already been ingested: `{pcap_file}`. \
 The data is ready for analysis."
 
-
 def create_agent(
-    *, api_key: str, model: str, pcap_file: str | None = None
+    *, api_key: str, model: str, pcap_file: str | None = None, schema: str | None = None
 ) -> "ChatAnthropic":
     """Return a ChatAnthropic session with all 8 analysis tools registered."""
     system_prompt = _SYSTEM_PROMPT
     if pcap_file:
         system_prompt += _PCAP_LOADED_SUFFIX.format(pcap_file=pcap_file)
+    if schema:
+        system_prompt += "\n\n" + schema
 
     chat = ChatAnthropic(
         system_prompt=system_prompt,

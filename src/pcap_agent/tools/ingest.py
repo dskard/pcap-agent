@@ -112,6 +112,7 @@ def _summary(
         "protocol_counts": get_protocol_breakdown(),
         "top_talkers": get_top_talkers(10),
         "db_path": db_path,
+        "schema": db.get_schema(conn),
     }
 
 

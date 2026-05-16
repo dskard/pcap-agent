@@ -179,8 +179,94 @@ class TestGetLayer2SummaryEthernetCapture:
             "distinct_vlan_ids",
             "top_5_src_macs",
             "top_5_dst_macs",
+            "avg_signal_dbm",
+            "min_signal_dbm",
+            "max_signal_dbm",
+            "distinct_channels",
+            "avg_data_rate_mbps",
         }
         assert set(result.keys()) == expected_keys
+
+    def test_radio_stats_none_for_non_radiotap(self, eth_conn):
+        result = get_layer2_summary()
+        assert result["avg_signal_dbm"] is None
+        assert result["min_signal_dbm"] is None
+        assert result["max_signal_dbm"] is None
+        assert result["avg_data_rate_mbps"] is None
+        assert result["distinct_channels"] == []
+
+
+_RT_FRAMES = [
+    {"signal_dbm": -65.0, "channel": 6, "data_rate_mbps": 54.0},
+    {"signal_dbm": -72.0, "channel": 36, "data_rate_mbps": 12.0},
+    {"signal_dbm": -80.0, "channel": 6, "data_rate_mbps": 2.0},
+]
+_RT_AVG_SIGNAL = sum(f["signal_dbm"] for f in _RT_FRAMES) / len(_RT_FRAMES)
+_RT_MIN_SIGNAL = min(f["signal_dbm"] for f in _RT_FRAMES)
+_RT_MAX_SIGNAL = max(f["signal_dbm"] for f in _RT_FRAMES)
+_RT_DISTINCT_CHANNELS = sorted({f["channel"] for f in _RT_FRAMES})
+_RT_AVG_RATE = sum(f["data_rate_mbps"] for f in _RT_FRAMES) / len(_RT_FRAMES)
+
+
+@pytest.fixture()
+def radiotap_conn(eth_pcap):
+    """In-memory DB with one Ethernet frame plus radiotap_frames rows."""
+    from pcap_agent import parser
+
+    conn = duckdb.connect(":memory:")
+    db.create_schema(conn)
+    parsed = parser.parse(eth_pcap)
+    db.ingest(conn, parsed)
+    db.set_capture_info(
+        conn,
+        sha256="rt-test-sha256",
+        link_type=parsed.link_type,
+        has_radiotap=True,
+    )
+    for i, frame in enumerate(_RT_FRAMES):
+        conn.execute(
+            "INSERT INTO radiotap_frames"
+            " (frame_id, signal_dbm, channel, data_rate_mbps)"
+            " VALUES (?, ?, ?, ?)",
+            [1000 + i, frame["signal_dbm"], frame["channel"], frame["data_rate_mbps"]],
+        )
+    old = _state.get_connection()
+    old_path = _state.get_db_path()
+    _state.set_connection(conn, ":memory:")
+    yield conn
+    _state.set_connection(old, old_path) if old else _state.reset()
+    conn.close()
+
+
+class TestGetLayer2SummaryRadiotapCapture:
+    def test_has_radiotap_true(self, radiotap_conn):
+        result = get_layer2_summary()
+        assert result["has_radiotap"] is True
+
+    def test_avg_signal_dbm(self, radiotap_conn):
+        result = get_layer2_summary()
+        assert result["avg_signal_dbm"] == pytest.approx(_RT_AVG_SIGNAL)
+
+    def test_min_signal_dbm(self, radiotap_conn):
+        result = get_layer2_summary()
+        assert result["min_signal_dbm"] == pytest.approx(_RT_MIN_SIGNAL)
+
+    def test_max_signal_dbm(self, radiotap_conn):
+        result = get_layer2_summary()
+        assert result["max_signal_dbm"] == pytest.approx(_RT_MAX_SIGNAL)
+
+    def test_distinct_channels_from_per_frame_data(self, radiotap_conn):
+        result = get_layer2_summary()
+        assert result["distinct_channels"] == _RT_DISTINCT_CHANNELS
+
+    def test_avg_data_rate_mbps(self, radiotap_conn):
+        result = get_layer2_summary()
+        assert result["avg_data_rate_mbps"] == pytest.approx(_RT_AVG_RATE)
+
+    def test_signal_variation_across_frames(self, radiotap_conn):
+        result = get_layer2_summary()
+        assert result["min_signal_dbm"] < result["avg_signal_dbm"]
+        assert result["avg_signal_dbm"] < result["max_signal_dbm"]
 
 
 class TestGetLayer2SummaryNoEthernetData:
