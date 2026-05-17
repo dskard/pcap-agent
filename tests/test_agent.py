@@ -1,10 +1,11 @@
 """Tests for agent creation and system prompt construction."""
 
+import types
+
 import pytest
 from chatlas import ToolRejectError
-from chatlas._content import ContentToolRequest
 
-from pcap_agent.agent import create_agent
+from pcap_agent.agent import create_agent, reject_non_dict_tool_input
 
 
 class TestCreateAgent:
@@ -52,22 +53,24 @@ class TestCreateAgent:
         assert "decode_payload" in tool_names
 
 
-class TestOnToolRequestCallback:
-    def test_raises_tool_reject_error_for_null_arguments(self):
-        chat = create_agent(api_key="test-key", model="claude-sonnet-4-6")
-        request = ContentToolRequest(id="req-1", name="query", arguments=None)
-        with pytest.raises(ToolRejectError):
-            chat._on_tool_request_callbacks.invoke(request)
+class TestRejectNonDictToolInput:
+    def _req(self, arguments):
+        return types.SimpleNamespace(arguments=arguments)
 
-    def test_raises_tool_reject_error_for_string_arguments(self):
-        chat = create_agent(api_key="test-key", model="claude-sonnet-4-6")
-        request = ContentToolRequest(id="req-2", name="query", arguments="bad input")
+    def test_raises_for_null_arguments(self):
         with pytest.raises(ToolRejectError):
-            chat._on_tool_request_callbacks.invoke(request)
+            reject_non_dict_tool_input(self._req(None))
+
+    def test_raises_for_string_arguments(self):
+        with pytest.raises(ToolRejectError):
+            reject_non_dict_tool_input(self._req("bad input"))
+
+    def test_raises_for_list_arguments(self):
+        with pytest.raises(ToolRejectError):
+            reject_non_dict_tool_input(self._req([1, 2, 3]))
 
     def test_does_not_raise_for_dict_arguments(self):
-        chat = create_agent(api_key="test-key", model="claude-sonnet-4-6")
-        request = ContentToolRequest(
-            id="req-3", name="query", arguments={"sql": "SELECT 1"}
-        )
-        chat._on_tool_request_callbacks.invoke(request)
+        reject_non_dict_tool_input(self._req({"sql": "SELECT 1"}))
+
+    def test_does_not_raise_for_empty_dict(self):
+        reject_non_dict_tool_input(self._req({}))
