@@ -165,4 +165,17 @@ def main(
     if ui == "app":
         chat.app()
     else:
-        chat.console()
+        import anthropic
+
+        while True:
+            try:
+                chat.console()
+                break
+            except anthropic.BadRequestError as exc:
+                if "tool_use.input" not in str(exc):
+                    raise
+                chat.set_turns(chat.get_turns()[:-1])
+                click.echo(
+                    "[error] The model produced an invalid tool call and the turn"
+                    " was dropped. You can continue the conversation."
+                )

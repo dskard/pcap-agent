@@ -1,6 +1,11 @@
 """Tests for agent creation and system prompt construction."""
 
-from pcap_agent.agent import create_agent
+import types
+
+import pytest
+from chatlas import ToolRejectError
+
+from pcap_agent.agent import create_agent, reject_non_dict_tool_input
 
 
 class TestCreateAgent:
@@ -46,3 +51,34 @@ class TestCreateAgent:
         chat = create_agent(api_key="test-key", model="claude-sonnet-4-6")
         tool_names = [t.name for t in chat.get_tools()]
         assert "decode_payload" in tool_names
+
+
+class TestCreateAgentToolRequestGuard:
+    def test_on_tool_request_guard_is_registered(self):
+        chat = create_agent(api_key="test-key", model="claude-sonnet-4-6")
+        req = types.SimpleNamespace(arguments=None)
+        with pytest.raises(ToolRejectError):
+            chat._on_tool_request_callbacks.invoke(req)
+
+
+class TestRejectNonDictToolInput:
+    def _req(self, arguments):
+        return types.SimpleNamespace(arguments=arguments)
+
+    def test_raises_for_null_arguments(self):
+        with pytest.raises(ToolRejectError):
+            reject_non_dict_tool_input(self._req(None))
+
+    def test_raises_for_string_arguments(self):
+        with pytest.raises(ToolRejectError):
+            reject_non_dict_tool_input(self._req("bad input"))
+
+    def test_raises_for_list_arguments(self):
+        with pytest.raises(ToolRejectError):
+            reject_non_dict_tool_input(self._req([1, 2, 3]))
+
+    def test_does_not_raise_for_dict_arguments(self):
+        reject_non_dict_tool_input(self._req({"sql": "SELECT 1"}))
+
+    def test_does_not_raise_for_empty_dict(self):
+        reject_non_dict_tool_input(self._req({}))

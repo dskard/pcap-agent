@@ -4,7 +4,9 @@ import logging
 import os
 from unittest.mock import MagicMock, patch
 
+import anthropic
 import duckdb
+import httpx
 import pytest
 from click.testing import CliRunner
 from constants import TOTAL_FRAMES, UDP_TOP_TALKER_IP
@@ -166,6 +168,77 @@ class TestCliLogFile:
         )
         assert result.exit_code != 0
         assert "Error" in result.output or "Error" in (result.output or "")
+
+
+def _make_bad_request_error(
+    msg: str = "messages.0.content.0.tool_use.input: Input should be an object",
+) -> anthropic.BadRequestError:
+    response = httpx.Response(
+        400, request=httpx.Request("POST", "https://api.anthropic.com")
+    )
+    return anthropic.BadRequestError(msg, response=response, body=None)
+
+
+class TestCliBadRequestRecovery:
+    """CLI recovers from BadRequestError by popping the malformed turn."""
+
+    @pytest.fixture(autouse=True)
+    def _clean_env(self):
+        saved = {k: os.environ.pop(k, None) for k in ("PCAP_AGENT_LOG_FILE",)}
+        yield
+        for k, v in saved.items():
+            if v is not None:
+                os.environ[k] = v
+            else:
+                os.environ.pop(k, None)
+
+    def test_bad_request_error_pops_last_turn_and_continues(self, cli_runner):
+        turns = [MagicMock(), MagicMock()]
+        mock_chat = MagicMock()
+        mock_chat.get_turns.return_value = turns
+        mock_chat.console.side_effect = [_make_bad_request_error(), None]
+
+        with patch("pcap_agent.agent.create_agent", return_value=mock_chat):
+            result = cli_runner.invoke(
+                main,
+                ["--api-key", "test-key"],
+                catch_exceptions=False,
+            )
+
+        assert result.exit_code == 0
+        mock_chat.set_turns.assert_called_once_with(turns[:-1])
+        assert "[error]" in result.output
+
+    def test_bad_request_error_prints_recoverable_message(self, cli_runner):
+        mock_chat = MagicMock()
+        mock_chat.get_turns.return_value = [MagicMock()]
+        mock_chat.console.side_effect = [_make_bad_request_error(), None]
+
+        with patch("pcap_agent.agent.create_agent", return_value=mock_chat):
+            result = cli_runner.invoke(
+                main,
+                ["--api-key", "test-key"],
+                catch_exceptions=False,
+            )
+
+        assert "invalid tool call" in result.output.lower()
+        assert "continue" in result.output.lower()
+
+    def test_unrelated_bad_request_error_is_reraised(self, cli_runner):
+        mock_chat = MagicMock()
+        mock_chat.get_turns.return_value = [MagicMock()]
+        mock_chat.console.side_effect = _make_bad_request_error(
+            "Your credit balance is too low"
+        )
+
+        with patch("pcap_agent.agent.create_agent", return_value=mock_chat):
+            result = cli_runner.invoke(
+                main,
+                ["--api-key", "test-key"],
+            )
+
+        assert result.exit_code != 0
+        mock_chat.set_turns.assert_not_called()
 
 
 class TestCliForceReingest:

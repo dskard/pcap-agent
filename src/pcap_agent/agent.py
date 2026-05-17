@@ -2,7 +2,7 @@
 
 import logging
 
-from chatlas import ChatAnthropic
+from chatlas import ChatAnthropic, ToolRejectError
 
 from pcap_agent import telemetry
 from pcap_agent.tools.analysis import get_protocol_breakdown, get_top_talkers
@@ -49,6 +49,15 @@ Not supported (no data captured or decoded):
 _PCAP_LOADED_SUFFIX = "\nA PCAP file has already been ingested: `{pcap_file}`. \
 The data is ready for analysis."
 
+
+def reject_non_dict_tool_input(request) -> None:
+    """Raise ToolRejectError when the model emits a non-object tool argument."""
+    if not isinstance(request.arguments, dict):
+        raise ToolRejectError(
+            "Tool input must be an object, not a primitive value."
+        )
+
+
 def create_agent(
     *, api_key: str, model: str, pcap_file: str | None = None, schema: str | None = None
 ) -> "ChatAnthropic":
@@ -65,6 +74,8 @@ def create_agent(
         api_key=api_key,
     )
     logger.info("Agent session started (model=%s)", model)
+
+    chat.on_tool_request(reject_non_dict_tool_input)
     _tools = [
         ingest_pcap,
         get_protocol_breakdown,
