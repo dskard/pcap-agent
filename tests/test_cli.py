@@ -1,6 +1,7 @@
 """Tests for the CLI entry point."""
 
 import logging
+import os
 from unittest.mock import MagicMock, patch
 
 import duckdb
@@ -165,3 +166,51 @@ class TestCliLogFile:
         )
         assert result.exit_code != 0
         assert "Error" in result.output or "Error" in (result.output or "")
+
+
+class TestCliForceReingest:
+    """CLI --force-reingest flag sets the env var and updates the synopsis."""
+
+    @pytest.fixture(autouse=True)
+    def _clean_env(self):
+        saved = {
+            k: os.environ.pop(k, None)
+            for k in ("PCAP_AGENT_FORCE_REINGEST", "PCAP_AGENT_LOG_FILE")
+        }
+        yield
+        for k, v in saved.items():
+            if v is not None:
+                os.environ[k] = v
+            else:
+                os.environ.pop(k, None)
+
+    def _invoke(self, cli_runner, mock_chat, pcap_path, db_dir, extra_args=None):
+        args = [
+            str(pcap_path),
+            "--api-key", "test-key",
+            "--db-dir", str(db_dir),
+            "--ui", "console",
+        ]
+        if extra_args:
+            args += extra_args
+        with patch("pcap_agent.agent.create_agent", return_value=mock_chat):
+            return cli_runner.invoke(main, args, catch_exceptions=False)
+
+    def test_force_reingest_synopsis_shows_forced_label(
+        self, cli_runner, mock_chat, synthetic_pcap, tmp_path
+    ):
+        self._invoke(cli_runner, mock_chat, synthetic_pcap, tmp_path)
+        result = self._invoke(
+            cli_runner, mock_chat, synthetic_pcap, tmp_path,
+            extra_args=["--force-reingest"],
+        )
+        assert result.exit_code == 0, result.output
+        assert "(forced re-ingest)" in result.output
+
+    def test_no_force_reingest_flag_does_not_set_env_var(
+        self, cli_runner, mock_chat, synthetic_pcap, tmp_path
+    ):
+        with patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("PCAP_AGENT_FORCE_REINGEST", None)
+            self._invoke(cli_runner, mock_chat, synthetic_pcap, tmp_path)
+            assert os.environ.get("PCAP_AGENT_FORCE_REINGEST") is None

@@ -9,7 +9,12 @@ import click
 
 
 def _print_synopsis(pcap_file: str, result: dict[str, Any]) -> None:
-    label = "(from cache)" if result.get("cached") else "(new)"
+    if result.get("forced"):
+        label = "(forced re-ingest)"
+    elif result.get("cached"):
+        label = "(from cache)"
+    else:
+        label = "(new)"
     click.echo(
         f"\nLoaded {Path(pcap_file).name} {label} — {result['n_packets']} packets"
     )
@@ -80,6 +85,13 @@ def _print_synopsis(pcap_file: str, result: dict[str, Any]) -> None:
     help="Route log output to this file (append mode) instead of stderr"
     " [env: PCAP_AGENT_LOG_FILE]",
 )
+@click.option(
+    "--force-reingest",
+    envvar="PCAP_AGENT_FORCE_REINGEST",
+    is_flag=True,
+    default=False,
+    help="Clear cached data and force re-ingest [env: PCAP_AGENT_FORCE_REINGEST]",
+)
 def main(
     pcap_file: str | None,
     api_key: str,
@@ -89,6 +101,7 @@ def main(
     otlp_endpoint: str,
     log_level: str,
     log_file: str,
+    force_reingest: bool,
 ) -> None:
     """PCAP analysis agent powered by Claude.
 
@@ -113,6 +126,8 @@ def main(
     os.environ["OTEL_EXPORTER_OTLP_ENDPOINT"] = otlp_endpoint
     os.environ["PCAP_AGENT_LOG_LEVEL"] = log_level
     os.environ["PCAP_AGENT_LOG_FILE"] = log_file
+    if force_reingest:
+        os.environ["PCAP_AGENT_FORCE_REINGEST"] = "true"
 
     from pcap_agent import telemetry
 
