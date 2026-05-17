@@ -45,7 +45,8 @@ def decode_payload(
         if raw[:4] == _ZIP_MAGIC:
             return _handle_zip(raw, member=member if isinstance(member, str) else None)
         if raw[:2] == _GZIP_MAGIC:
-            return _decompress_gzip(raw, member=member or 0)
+            gzip_member = member if isinstance(member, int) else 0
+            return _decompress_gzip(raw, member=gzip_member)
         if raw[:2] in _ZLIB_MAGICS:
             return _decompress_zlib(raw)
         return {
@@ -91,6 +92,13 @@ def _handle_zip(raw: bytes, member: str | None = None) -> dict:
         }
 
     data = zf.read(member)
+    if len(data) > _MAX_BYTES:
+        sz = len(data)
+        msg = f"Member {member!r} decompressed to {sz} bytes, exceeding {_MAX_BYTES}."
+        return {
+            "error": msg,
+            "hint": "Extract a smaller member or use a different tool.",
+        }
     return _encode_output(data)
 
 
