@@ -171,7 +171,9 @@ def main(
             try:
                 chat.console()
                 break
-            except anthropic.BadRequestError:
+            except anthropic.BadRequestError as exc:
+                if "tool_use.input" not in str(exc):
+                    raise
                 chat.set_turns(chat.get_turns()[:-1])
                 click.echo(
                     "[error] The model produced an invalid tool call and the turn"

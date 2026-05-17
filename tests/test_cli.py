@@ -224,6 +224,22 @@ class TestCliBadRequestRecovery:
         assert "invalid tool call" in result.output.lower()
         assert "continue" in result.output.lower()
 
+    def test_unrelated_bad_request_error_is_reraised(self, cli_runner):
+        mock_chat = MagicMock()
+        mock_chat.get_turns.return_value = [MagicMock()]
+        mock_chat.console.side_effect = _make_bad_request_error(
+            "Your credit balance is too low"
+        )
+
+        with patch("pcap_agent.agent.create_agent", return_value=mock_chat):
+            result = cli_runner.invoke(
+                main,
+                ["--api-key", "test-key"],
+            )
+
+        assert result.exit_code != 0
+        mock_chat.set_turns.assert_not_called()
+
 
 class TestCliForceReingest:
     """CLI --force-reingest flag sets the env var and updates the synopsis."""
