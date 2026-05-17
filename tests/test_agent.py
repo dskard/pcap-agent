@@ -33,3 +33,16 @@ class TestCreateAgent:
             pcap_file="/data/test.pcap",
         )
         assert "Database schema:" not in chat.system_prompt
+
+    def test_system_prompt_contains_decode_payload_hint(self):
+        chat = create_agent(api_key="test-key", model="claude-sonnet-4-6")
+        assert (
+            "When a payload is returned as hex-encoded bytes, call decode_payload"
+            " to decompress or unpack it before presenting results to the user."
+            in chat.system_prompt
+        )
+
+    def test_decode_payload_registered_as_tool(self):
+        chat = create_agent(api_key="test-key", model="claude-sonnet-4-6")
+        tool_names = [t.name for t in chat.get_tools()]
+        assert "decode_payload" in tool_names
