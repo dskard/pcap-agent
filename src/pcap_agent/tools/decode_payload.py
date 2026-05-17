@@ -3,8 +3,11 @@
 from __future__ import annotations
 
 import io
+import logging
 import zipfile
 import zlib
+
+logger = logging.getLogger(__name__)
 
 _MAX_BYTES = 64 * 1024
 
@@ -37,6 +40,8 @@ def decode_payload(
             "error": f"Invalid hex input: {exc}",
             "hint": "Provide a valid hex string.",
         }
+
+    logger.debug("decode_payload: format=%s, input=%d bytes", format, len(raw))
 
     if format == "deflate":
         return _decompress_deflate(raw)
@@ -164,6 +169,7 @@ def _encode_output(data: bytes) -> dict:
     if len(data) > _MAX_BYTES:
         data = data[:_MAX_BYTES]
         truncated = True
+        logger.warning("decode_payload: output truncated at %d bytes", _MAX_BYTES)
 
     try:
         content = data.decode("utf-8")
@@ -172,6 +178,7 @@ def _encode_output(data: bytes) -> dict:
         content = data.hex()
         content_encoding = "hex"
 
+    logger.info("decode_payload: decoded %d bytes as %s", len(data), content_encoding)
     return {
         "content": content,
         "content_encoding": content_encoding,
