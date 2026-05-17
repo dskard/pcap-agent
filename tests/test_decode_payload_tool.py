@@ -160,3 +160,11 @@ class TestMemberSelection:
 
         assert result0["content"] == "first member"
         assert result1["content"] == "second member"
+
+    def test_out_of_bounds_member_returns_error(self):
+        compressed = gzip.compress(b"only one member")
+
+        result = decode_payload(compressed.hex(), member=99)
+
+        assert "error" in result
+        assert "hint" in result

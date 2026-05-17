@@ -56,7 +56,13 @@ def _decompress_gzip(raw: bytes, member: int = 0) -> dict:
         members = list(_iter_gzip_members(raw))
         if not members:
             return {"error": "gzip decompression failed: no members found"}
-        target = members[member] if member < len(members) else members[-1]
+        if member >= len(members):
+            n = len(members)
+            return {
+                "error": f"Member {member} out of range: stream has {n} member(s).",
+                "hint": f"Use a member index between 0 and {n - 1}.",
+            }
+        target = members[member]
     except zlib.error as exc:
         return {"error": f"gzip decompression failed: {exc}"}
     return _encode_output(target)
