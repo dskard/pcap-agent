@@ -41,7 +41,9 @@ def decode_payload(
             "hint": "Provide a valid hex string.",
         }
 
-    logger.debug("decode_payload: format=%s, input=%d bytes", format, len(raw))
+    logger.debug(
+        "decode_payload: format=%s, input=%d bytes, member=%s", format, len(raw), member
+    )
 
     if format == "deflate":
         return _decompress_deflate(raw)
