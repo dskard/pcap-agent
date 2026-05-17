@@ -2,30 +2,33 @@
 
 from __future__ import annotations
 
+import io
+import zipfile
 import zlib
 
 _MAX_BYTES = 64 * 1024
 
 _GZIP_MAGIC = b"\x1f\x8b"
 _ZLIB_MAGICS = {b"\x78\x9c", b"\x78\x01", b"\x78\xda"}
+_ZIP_MAGIC = b"\x50\x4b\x03\x04"
 
 
 def decode_payload(
     data: str,
     format: str = "auto",  # noqa: A002
-    member: int | None = None,
+    member: int | str | None = None,
 ) -> dict:
-    """Decompress a hex-encoded payload string.
+    """Decompress or decode a hex-encoded payload string.
 
     Parameters
     ----------
     data:
         Hex-encoded bytes (e.g. output of DuckDB ``hex()`` or ``reassemble_stream``).
     format:
-        ``'auto'`` detects gzip/zlib via magic bytes. ``'deflate'`` forces raw DEFLATE.
+        ``'auto'`` detects gzip/zlib/zip via magic bytes; ``'deflate'`` forces DEFLATE.
     member:
-        For multi-member gzip streams, select the 0-based member index to return.
-        Defaults to 0 (first member).
+        ZIP: a filename string to extract that member (omit to list all members).
+        gzip: a 0-based integer index to select a multi-member stream member.
     """
     try:
         raw = bytes.fromhex(data)
@@ -39,8 +42,11 @@ def decode_payload(
         return _decompress_deflate(raw)
 
     if format == "auto":
+        if raw[:4] == _ZIP_MAGIC:
+            return _handle_zip(raw, member=member if isinstance(member, str) else None)
         if raw[:2] == _GZIP_MAGIC:
-            return _decompress_gzip(raw, member=member or 0)
+            gzip_member = member if isinstance(member, int) else 0
+            return _decompress_gzip(raw, member=gzip_member)
         if raw[:2] in _ZLIB_MAGICS:
             return _decompress_zlib(raw)
         return {
@@ -49,6 +55,51 @@ def decode_payload(
         }
 
     return {"error": f"Unknown format: {format!r}", "hint": "Use 'auto', 'deflate'."}
+
+
+def _handle_zip(raw: bytes, member: str | None = None) -> dict:
+    try:
+        zf = zipfile.ZipFile(io.BytesIO(raw))
+    except zipfile.BadZipFile as exc:
+        return {
+            "error": f"ZIP parse failed: {exc}",
+            "hint": "Verify the payload is a valid ZIP archive.",
+        }
+
+    if member is None:
+        return {
+            "members": [
+                {
+                    "name": info.filename,
+                    "size": info.file_size,
+                    "compressed_size": info.compress_size,
+                }
+                for info in zf.infolist()
+            ]
+        }
+
+    info_map = {info.filename: info for info in zf.infolist()}
+    if member not in info_map:
+        return {"error": f"Member {member!r} not found.", "hint": "list members first"}
+
+    info = info_map[member]
+    if info.file_size > _MAX_BYTES:
+        sz = info.file_size
+        msg = f"Member {member!r} is {sz} bytes, exceeding the {_MAX_BYTES}-byte limit."
+        return {
+            "error": msg,
+            "hint": "Extract a smaller member or use a different tool.",
+        }
+
+    data = zf.read(member)
+    if len(data) > _MAX_BYTES:
+        sz = len(data)
+        msg = f"Member {member!r} decompressed to {sz} bytes, exceeding {_MAX_BYTES}."
+        return {
+            "error": msg,
+            "hint": "Extract a smaller member or use a different tool.",
+        }
+    return _encode_output(data)
 
 
 def _decompress_gzip(raw: bytes, member: int = 0) -> dict:
