@@ -41,7 +41,7 @@ def reassemble_stream(
     if proto == "TCP":
         rows = conn.execute(
             """
-            SELECT FIRST(t.payload) AS payload
+            SELECT MAX_BY(t.payload, OCTET_LENGTH(t.payload)) AS payload
             FROM tcp_segments t
             JOIN packets p ON p.frame_id = t.frame_id
             WHERE p.src_ip = ?
