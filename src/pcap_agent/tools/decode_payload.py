@@ -76,6 +76,15 @@ def _iter_gzip_members(data: bytes):
     while remaining:
         d = zlib.decompressobj(wbits=31)  # 31 = 15 + 16 enables gzip format
         yield d.decompress(remaining, max_length=_MAX_BYTES + 1)
+        # If max_length was hit, d.unused_data is empty and d.unconsumed_tail
+        # holds the remaining compressed bytes. Drain them (discarding output)
+        # until d.unused_data points to the next member.
+        tail = d.unconsumed_tail
+        while tail:
+            d.decompress(tail, max_length=_MAX_BYTES + 1)
+            if d.unused_data:
+                break
+            tail = d.unconsumed_tail
         remaining = d.unused_data
         if not remaining:
             break

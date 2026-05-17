@@ -175,3 +175,13 @@ class TestMemberSelection:
         result = decode_payload(compressed.hex(), member=-1)
 
         assert "error" in result
+
+    def test_oversized_member_0_does_not_drop_member_1(self):
+        large_member0 = gzip.compress(b"X" * (65 * 1024))  # exceeds _MAX_BYTES
+        member1 = gzip.compress(b"second member data")
+        combined = (large_member0 + member1).hex()
+
+        result = decode_payload(combined, member=1)
+
+        assert "error" not in result
+        assert result["content"] == "second member data"
