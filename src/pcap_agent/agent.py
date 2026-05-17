@@ -6,6 +6,7 @@ from chatlas import ChatAnthropic
 
 from pcap_agent import telemetry
 from pcap_agent.tools.analysis import get_protocol_breakdown, get_top_talkers
+from pcap_agent.tools.decode_payload import decode_payload
 from pcap_agent.tools.detection import detect_anomalies, detect_port_scans
 from pcap_agent.tools.ingest import ingest_pcap
 from pcap_agent.tools.layer2 import get_layer2_summary
@@ -49,7 +50,7 @@ The data is ready for analysis."
 def create_agent(
     *, api_key: str, model: str, pcap_file: str | None = None, schema: str | None = None
 ) -> "ChatAnthropic":
-    """Return a ChatAnthropic session with all 8 analysis tools registered."""
+    """Return a ChatAnthropic session with all 9 analysis tools registered."""
     system_prompt = _SYSTEM_PROMPT
     if pcap_file:
         system_prompt += _PCAP_LOADED_SUFFIX.format(pcap_file=pcap_file)
@@ -71,6 +72,7 @@ def create_agent(
         detect_port_scans,
         detect_anomalies,
         reassemble_stream,
+        decode_payload,
     ]
     for tool in _tools:
         chat.register_tool(telemetry.instrument_tool(tool))
