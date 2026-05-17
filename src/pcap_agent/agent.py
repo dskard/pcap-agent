@@ -2,7 +2,7 @@
 
 import logging
 
-from chatlas import ChatAnthropic
+from chatlas import ChatAnthropic, ToolRejectError
 
 from pcap_agent import telemetry
 from pcap_agent.tools.analysis import get_protocol_breakdown, get_top_talkers
@@ -65,6 +65,14 @@ def create_agent(
         api_key=api_key,
     )
     logger.info("Agent session started (model=%s)", model)
+
+    def _reject_non_dict_input(request):
+        if not isinstance(request.arguments, dict):
+            raise ToolRejectError(
+                "Tool input must be an object, not a primitive value."
+            )
+
+    chat.on_tool_request(_reject_non_dict_input)
     _tools = [
         ingest_pcap,
         get_protocol_breakdown,

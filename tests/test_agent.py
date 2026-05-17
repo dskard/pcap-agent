@@ -1,5 +1,9 @@
 """Tests for agent creation and system prompt construction."""
 
+import pytest
+from chatlas import ToolRejectError
+from chatlas._content import ContentToolRequest
+
 from pcap_agent.agent import create_agent
 
 
@@ -46,3 +50,24 @@ class TestCreateAgent:
         chat = create_agent(api_key="test-key", model="claude-sonnet-4-6")
         tool_names = [t.name for t in chat.get_tools()]
         assert "decode_payload" in tool_names
+
+
+class TestOnToolRequestCallback:
+    def test_raises_tool_reject_error_for_null_arguments(self):
+        chat = create_agent(api_key="test-key", model="claude-sonnet-4-6")
+        request = ContentToolRequest(id="req-1", name="query", arguments=None)
+        with pytest.raises(ToolRejectError):
+            chat._on_tool_request_callbacks.invoke(request)
+
+    def test_raises_tool_reject_error_for_string_arguments(self):
+        chat = create_agent(api_key="test-key", model="claude-sonnet-4-6")
+        request = ContentToolRequest(id="req-2", name="query", arguments="bad input")
+        with pytest.raises(ToolRejectError):
+            chat._on_tool_request_callbacks.invoke(request)
+
+    def test_does_not_raise_for_dict_arguments(self):
+        chat = create_agent(api_key="test-key", model="claude-sonnet-4-6")
+        request = ContentToolRequest(
+            id="req-3", name="query", arguments={"sql": "SELECT 1"}
+        )
+        chat._on_tool_request_callbacks.invoke(request)
