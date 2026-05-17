@@ -53,6 +53,14 @@ class TestCreateAgent:
         assert "decode_payload" in tool_names
 
 
+class TestCreateAgentToolRequestGuard:
+    def test_on_tool_request_guard_is_registered(self):
+        chat = create_agent(api_key="test-key", model="claude-sonnet-4-6")
+        req = types.SimpleNamespace(arguments=None)
+        with pytest.raises(ToolRejectError):
+            chat._on_tool_request_callbacks.invoke(req)
+
+
 class TestRejectNonDictToolInput:
     def _req(self, arguments):
         return types.SimpleNamespace(arguments=arguments)
