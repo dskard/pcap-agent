@@ -224,6 +224,20 @@ class TestIngestForceReingest:
         result = ingest_pcap(str(synthetic_pcap), db_dir=db_dir)
         assert result["forced"] is False
 
+    def test_force_reingest_on_first_ingest_returns_forced_false(
+        self, synthetic_pcap, tmp_path, _restore_state
+    ):
+        import os
+
+        db_dir = str(tmp_path)
+        os.environ["PCAP_AGENT_FORCE_REINGEST"] = "true"
+        try:
+            result = ingest_pcap(str(synthetic_pcap), db_dir=db_dir)
+        finally:
+            os.environ.pop("PCAP_AGENT_FORCE_REINGEST", None)
+        assert result["cached"] is False
+        assert result["forced"] is False
+
     def test_force_reingest_env_unset_after_test(
         self, synthetic_pcap, tmp_path, _restore_state
     ):

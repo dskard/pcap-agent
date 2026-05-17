@@ -24,8 +24,9 @@ def ingest_pcap(path: str | Path, db_dir: str | None = None) -> dict[str, Any]:
     protocol breakdown and top-talker analysis.
 
     When PCAP_AGENT_FORCE_REINGEST is set to "true" or "1" (case-insensitive),
-    any existing cached data is cleared and the file is re-ingested; the result
-    dict will have forced=True in that case.
+    any existing cached data is cleared and the file is re-ingested. The result
+    dict includes forced=True only when a cached entry was actually found and
+    cleared; a first-time ingest with the env var set returns forced=False.
     """
     pcap_path = Path(path)
     logger.info("Starting ingest for %s", pcap_path)
