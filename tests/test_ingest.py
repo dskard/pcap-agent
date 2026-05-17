@@ -178,6 +178,67 @@ class TestIngestCaching:
         assert result2["n_packets"] == TOTAL_IP
 
 
+class TestIngestForceReingest:
+    def test_force_reingest_bypasses_cache(
+        self, synthetic_pcap, tmp_path, _restore_state
+    ):
+        db_dir = str(tmp_path)
+        ingest_pcap(str(synthetic_pcap), db_dir=db_dir)
+        import os
+
+        os.environ["PCAP_AGENT_FORCE_REINGEST"] = "true"
+        try:
+            result = ingest_pcap(str(synthetic_pcap), db_dir=db_dir)
+        finally:
+            os.environ.pop("PCAP_AGENT_FORCE_REINGEST", None)
+        assert result["cached"] is False
+        assert result["forced"] is True
+        assert result["n_packets"] == TOTAL_IP
+
+    @pytest.mark.parametrize("env_val", ["true", "True", "TRUE", "1"])
+    def test_force_reingest_env_values(
+        self, synthetic_pcap, tmp_path, _restore_state, env_val
+    ):
+        import os
+
+        db_dir = str(tmp_path)
+        ingest_pcap(str(synthetic_pcap), db_dir=db_dir)
+        os.environ["PCAP_AGENT_FORCE_REINGEST"] = env_val
+        try:
+            result = ingest_pcap(str(synthetic_pcap), db_dir=db_dir)
+        finally:
+            os.environ.pop("PCAP_AGENT_FORCE_REINGEST", None)
+        assert result["forced"] is True
+
+    def test_no_force_reingest_returns_cached(
+        self, synthetic_pcap, tmp_path, _restore_state
+    ):
+        db_dir = str(tmp_path)
+        ingest_pcap(str(synthetic_pcap), db_dir=db_dir)
+        result = ingest_pcap(str(synthetic_pcap), db_dir=db_dir)
+        assert result["cached"] is True
+        assert result["forced"] is False
+
+    def test_fresh_ingest_forced_false(self, synthetic_pcap, tmp_path, _restore_state):
+        db_dir = str(tmp_path)
+        result = ingest_pcap(str(synthetic_pcap), db_dir=db_dir)
+        assert result["forced"] is False
+
+    def test_force_reingest_env_unset_after_test(
+        self, synthetic_pcap, tmp_path, _restore_state
+    ):
+        import os
+
+        db_dir = str(tmp_path)
+        ingest_pcap(str(synthetic_pcap), db_dir=db_dir)
+        os.environ["PCAP_AGENT_FORCE_REINGEST"] = "1"
+        try:
+            ingest_pcap(str(synthetic_pcap), db_dir=db_dir)
+        finally:
+            os.environ.pop("PCAP_AGENT_FORCE_REINGEST", None)
+        assert "PCAP_AGENT_FORCE_REINGEST" not in os.environ
+
+
 class TestIngestRadiotap:
     @pytest.fixture()
     def radiotap_pcap(self, tmp_path):

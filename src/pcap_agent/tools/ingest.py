@@ -2,6 +2,7 @@
 
 import hashlib
 import logging
+import os
 from pathlib import Path
 from typing import Any
 
@@ -21,10 +22,15 @@ def ingest_pcap(path: str | Path, db_dir: str | None = None) -> dict[str, Any]:
     Returns cached results (cached=True) without re-parsing if the file was
     already ingested (same SHA256). Otherwise parses, persists, and auto-runs
     protocol breakdown and top-talker analysis.
+
+    When PCAP_AGENT_FORCE_REINGEST is set to "true" or "1" (case-insensitive),
+    any existing cached data is cleared and the file is re-ingested; the result
+    dict will have forced=True in that case.
     """
     pcap_path = Path(path)
     logger.info("Starting ingest for %s", pcap_path)
     sha256 = _sha256(pcap_path)
+    force_reingest = _is_force_reingest()
 
     effective_db_dir = db_dir or config.pcap_agent_db_dir
     Path(effective_db_dir).mkdir(parents=True, exist_ok=True)
@@ -51,8 +57,16 @@ def ingest_pcap(path: str | Path, db_dir: str | None = None) -> dict[str, Any]:
             old_conn.close()
 
     clear_stale = False
+    force_clear = False
     if db.get_cached(conn, sha256) is not None:
-        if schema_was_stale:
+        if force_reingest:
+            logger.warning(
+                "Force re-ingest active (sha256=%s path=%s), clearing cached data",
+                sha256,
+                pcap_path,
+            )
+            force_clear = True
+        elif schema_was_stale:
             logger.warning(
                 "Stale cache (sha256=%s path=%s): new tables missing, re-ingesting",
                 sha256,
@@ -65,12 +79,12 @@ def ingest_pcap(path: str | Path, db_dir: str | None = None) -> dict[str, Any]:
                 sha256,
                 pcap_path,
             )
-            return _summary(conn, sha256, db_path, cached=True)
+            return _summary(conn, sha256, db_path, cached=True, forced=False)
 
     frames = parser.parse(pcap_path)
     conn.begin()
     try:
-        if clear_stale:
+        if clear_stale or force_clear:
             db.clear_data(conn, sha256)
         db.ingest(conn, frames, begin_transaction=False)
         db.set_cached(conn, sha256, str(pcap_path))
@@ -85,7 +99,7 @@ def ingest_pcap(path: str | Path, db_dir: str | None = None) -> dict[str, Any]:
         conn.rollback()
         raise
 
-    return _summary(conn, sha256, db_path, cached=False)
+    return _summary(conn, sha256, db_path, cached=False, forced=force_clear)
 
 
 def _summary(
@@ -94,6 +108,7 @@ def _summary(
     db_path: str,
     *,
     cached: bool,
+    forced: bool,
 ) -> dict[str, Any]:
     n_packets = conn.execute("SELECT COUNT(*) FROM packets").fetchone()[0]
     if not cached:
@@ -105,6 +120,7 @@ def _summary(
     time_start, time_end = (row[0], row[1]) if row else (None, None)
     return {
         "cached": cached,
+        "forced": forced,
         "sha256": sha256,
         "n_packets": n_packets,
         "time_start": time_start,
@@ -114,6 +130,13 @@ def _summary(
         "db_path": db_path,
         "schema": db.get_schema(conn),
     }
+
+
+def _is_force_reingest() -> bool:
+    return os.environ.get("PCAP_AGENT_FORCE_REINGEST", "").strip().lower() in (
+        "true",
+        "1",
+    )
 
 
 def _sha256(path: Path) -> str:
