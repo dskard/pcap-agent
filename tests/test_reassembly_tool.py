@@ -203,3 +203,40 @@ class TestTCPRetransmission:
 
         assert "error" not in result
         assert result["payload"] == "hello"
+
+
+class TestACKAndPushShareSeq:
+    """When ACK and push packets share a seq, the push payload must be returned."""
+
+    @pytest.fixture()
+    def ack_push_conn(self, duckdb_conn):
+        push_payload = b"OFT2data"
+        duckdb_conn.execute(
+            "INSERT INTO packets VALUES "
+            "(1, 1700000000.0, '1.1.1.1', '2.2.2.2', 6, 40, 64)"
+        )
+        duckdb_conn.execute(
+            "INSERT INTO packets VALUES "
+            "(2, 1700000001.0, '1.1.1.1', '2.2.2.2', 6, 48, 64)"
+        )
+        # ACK with no payload shares seq=1000
+        duckdb_conn.execute(
+            "INSERT INTO tcp_segments VALUES (1, 5000, 80, 'A', 1000, 0, NULL)"
+        )
+        # Push with real payload also at seq=1000
+        duckdb_conn.execute(
+            "INSERT INTO tcp_segments VALUES (2, 5000, 80, 'PA', 1000, 0, ?)",
+            [push_payload],
+        )
+        old = _state.get_connection()
+        old_path = _state.get_db_path()
+        _state.set_connection(duckdb_conn, ":memory:")
+        yield duckdb_conn, push_payload
+        _state.set_connection(old, old_path) if old else _state.reset()
+
+    def test_push_payload_wins_over_ack_at_same_seq(self, ack_push_conn):
+        _, push_payload = ack_push_conn
+        result = reassemble_stream("1.1.1.1", "2.2.2.2", 5000, 80, "TCP")
+
+        assert "error" not in result
+        assert result["payload"] == push_payload.decode("utf-8")
