@@ -247,3 +247,14 @@ class TestZipMemberNotFound:
 
         assert "error" in result
         assert result.get("hint") == "list members first"
+
+
+class TestDebugLogging:
+    def test_debug_log_includes_member(self, caplog):
+        import logging
+
+        compressed = gzip.compress(b"hello")
+        with caplog.at_level(logging.DEBUG, logger="pcap_agent.tools.decode_payload"):
+            decode_payload(compressed.hex(), member=0)
+
+        assert any("member=0" in r.message for r in caplog.records)
