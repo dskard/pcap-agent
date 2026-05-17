@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import gzip
+import io
+import zipfile
 import zlib
 
 from pcap_agent.tools.decode_payload import decode_payload
@@ -185,3 +187,63 @@ class TestMemberSelection:
 
         assert "error" not in result
         assert result["content"] == "second member data"
+
+
+def _make_zip(*members: tuple[str, bytes]) -> bytes:
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", compression=zipfile.ZIP_DEFLATED) as zf:
+        for name, data in members:
+            zf.writestr(name, data)
+    return buf.getvalue()
+
+
+class TestZipMemberListing:
+    def test_zip_magic_bytes_trigger_member_listing(self):
+        zip_bytes = _make_zip(("hello.txt", b"Hello"), ("world.txt", b"World"))
+        result = decode_payload(zip_bytes.hex())
+
+        assert "error" not in result
+        assert "members" in result
+        members = result["members"]
+        assert len(members) == 2
+        names = {m["name"] for m in members}
+        assert names == {"hello.txt", "world.txt"}
+        for m in members:
+            assert "size" in m
+            assert "compressed_size" in m
+
+
+class TestZipMemberExtraction:
+    def test_extract_text_member_by_name(self):
+        zip_bytes = _make_zip(("readme.txt", b"Hello from ZIP"))
+        result = decode_payload(zip_bytes.hex(), member="readme.txt")
+
+        assert "error" not in result
+        assert result["content"] == "Hello from ZIP"
+        assert result["content_encoding"] == "utf-8"
+
+    def test_extract_binary_member_returns_hex(self):
+        binary_data = bytes(range(256))
+        zip_bytes = _make_zip(("data.bin", binary_data))
+        result = decode_payload(zip_bytes.hex(), member="data.bin")
+
+        assert "error" not in result
+        assert result["content_encoding"] == "hex"
+        assert result["content"] == binary_data.hex()
+
+    def test_member_exceeding_64kb_returns_hard_error(self):
+        large_data = b"X" * (_MAX_BYTES + 1)
+        zip_bytes = _make_zip(("big.txt", large_data))
+        result = decode_payload(zip_bytes.hex(), member="big.txt")
+
+        assert "error" in result
+        assert "truncated" not in result
+
+
+class TestZipMemberNotFound:
+    def test_nonexistent_member_returns_structured_error(self):
+        zip_bytes = _make_zip(("exists.txt", b"data"))
+        result = decode_payload(zip_bytes.hex(), member="does_not_exist.txt")
+
+        assert "error" in result
+        assert result.get("hint") == "list members first"
