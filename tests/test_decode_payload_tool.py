@@ -168,3 +168,10 @@ class TestMemberSelection:
 
         assert "error" in result
         assert "hint" in result
+
+    def test_negative_member_returns_error(self):
+        compressed = gzip.compress(b"single member")
+
+        result = decode_payload(compressed.hex(), member=-1)
+
+        assert "error" in result

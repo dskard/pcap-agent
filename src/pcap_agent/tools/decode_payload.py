@@ -52,6 +52,8 @@ def decode_payload(
 
 
 def _decompress_gzip(raw: bytes, member: int = 0) -> dict:
+    if member < 0:
+        return {"error": f"Member index must be >= 0, got {member}."}
     try:
         members = list(_iter_gzip_members(raw))
         if not members:
@@ -73,7 +75,7 @@ def _iter_gzip_members(data: bytes):
     remaining = data
     while remaining:
         d = zlib.decompressobj(wbits=31)  # 31 = 15 + 16 enables gzip format
-        yield d.decompress(remaining)
+        yield d.decompress(remaining, max_length=_MAX_BYTES + 1)
         remaining = d.unused_data
         if not remaining:
             break
@@ -81,7 +83,8 @@ def _iter_gzip_members(data: bytes):
 
 def _decompress_zlib(raw: bytes) -> dict:
     try:
-        decompressed = zlib.decompress(raw)
+        d = zlib.decompressobj()
+        decompressed = d.decompress(raw, max_length=_MAX_BYTES + 1)
     except zlib.error as exc:
         return {"error": f"zlib decompression failed: {exc}"}
     return _encode_output(decompressed)
@@ -89,7 +92,8 @@ def _decompress_zlib(raw: bytes) -> dict:
 
 def _decompress_deflate(raw: bytes) -> dict:
     try:
-        decompressed = zlib.decompress(raw, wbits=-15)
+        d = zlib.decompressobj(wbits=-15)
+        decompressed = d.decompress(raw, max_length=_MAX_BYTES + 1)
     except zlib.error as exc:
         return {"error": f"deflate decompression failed: {exc}"}
     return _encode_output(decompressed)
