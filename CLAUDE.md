@@ -113,6 +113,7 @@ pytest collects files alphabetically. Tests in `test_query_tool.py` run after `t
 | `PCAP_AGENT_UI` | `console` | UI mode |
 | `PCAP_AGENT_LOG_LEVEL` | `WARNING` | Root logger level (`DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL`) |
 | `PCAP_AGENT_LOG_FILE` | `""` | Route log output to this file (append mode) instead of stderr |
+| `PCAP_AGENT_FORCE_REINGEST` | `""` | Set to `true` or `1` to clear cached data and force re-ingest |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | `""` | OpenTelemetry OTLP endpoint |
 
 Tests set `ANTHROPIC_API_KEY=test-dummy-key` via `pytest_configure` in `conftest.py`.

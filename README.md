@@ -91,6 +91,7 @@ All options can be set via CLI flags or environment variables. CLI flags take pr
 | `PCAP_AGENT_UI` | `console` | `--ui` | UI mode: `console` or `app` |
 | `PCAP_AGENT_LOG_LEVEL` | `WARNING` | `--log-level` | Log level: `DEBUG` `INFO` `WARNING` `ERROR` `CRITICAL` |
 | `PCAP_AGENT_LOG_FILE` | `""` | `--log-file` | Write logs to a file instead of stderr |
+| `PCAP_AGENT_FORCE_REINGEST` | `""` | — | Set to `true` or `1` to clear cached data and re-ingest |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | `""` | `--otlp-endpoint` | OTLP endpoint (empty = telemetry off) |
 
 Set variables in `.envrc` (or `.env`) to avoid repeating them on every invocation.
